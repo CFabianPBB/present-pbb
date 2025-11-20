@@ -17,7 +17,7 @@ services:
 
   - type: web
     name: present-pbb-frontend
-    runtime: node
+    runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
