@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { DollarSign, Users, TrendingUp, FileText, Zap } from 'lucide-react'
 import { ProgramDetailModal } from '../components/ProgramDetailModal'
 import WhereYourDollarGoes from '../components/WhereYourDollarGoes'
+import { API_BASE_URL } from '../config/api';
 
 interface Program {
   id: number
@@ -63,7 +64,7 @@ export default function TaxpayerDividend() {
           return
         }
         
-        const url = `http://localhost:8000/api/charts/taxpayer-dividend?dataset_id=${datasetId}`
+        const url = `${API_BASE_URL}/api/charts/taxpayer-dividend?dataset_id=${datasetId}`
         console.log('Fetching from URL:', url)
         
         const response = await fetch(url)

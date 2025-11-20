@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, Files, Trash2 } from 'lucide-react'
+import { API_BASE_URL } from '../config/api';
 
 interface Dataset {
   id: string
@@ -40,7 +41,7 @@ export function Admin() {
   const loadDatasets = async () => {
     setLoadingDatasets(true)
     try {
-      const response = await fetch('http://localhost:8000/api/datasets')
+      const response = await fetch(`${API_BASE_URL}/api/datasets`)
       if (response.ok) {
         const data = await response.json()
         setDatasets(data)
@@ -69,7 +70,7 @@ export function Admin() {
     setDeleteSuccess(null)
 
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/dataset/${datasetId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/dataset/${datasetId}`, {
         method: 'DELETE',
         headers: {
           'X-Admin-Secret': adminSecret,
@@ -127,7 +128,7 @@ export function Admin() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('http://localhost:8000/api/admin/upload', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -176,7 +177,7 @@ export function Admin() {
       formData.append('dataset_name', datasetName)
       formData.append('population', population.toString())
 
-      const response = await fetch('http://localhost:8000/api/admin/upload-multi', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/upload-multi`, {
         method: 'POST',
         headers: {
           'X-Admin-Secret': adminSecret,

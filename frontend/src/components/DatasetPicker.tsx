@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { API_BASE_URL } from '../config/api';
 
 interface Dataset {
   id: string
@@ -20,7 +21,7 @@ export function DatasetPicker() {
 
   const fetchDatasets = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/datasets')
+      const response = await fetch(`${API_BASE_URL}/api/datasets`)
       if (response.ok) {
         const data = await response.json()
         setDatasets(data)

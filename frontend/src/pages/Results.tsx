@@ -4,6 +4,7 @@ import { ProgramDrawer } from '../components/ProgramDrawer'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { InsightsPanel } from '../components/InsightsPanel'
 import { HelpCircle } from 'lucide-react'
+import { API_BASE_URL } from '../config/api';
 
 interface Priority {
   priority: string
@@ -78,7 +79,7 @@ export function Results() {
     try {
       // Load spending by priority data
       const spendingResponse = await fetch(
-        `http://localhost:8000/api/charts/spending-by-priority?dataset_id=${datasetId}&group=${activeTab}`
+        `${API_BASE_URL}/api/charts/spending-by-priority?dataset_id=${datasetId}&group=${activeTab}`
       )
       
       if (spendingResponse.ok) {
@@ -98,7 +99,7 @@ export function Results() {
 
       // Load all programs for treemap
       const programsResponse = await fetch(
-        `http://localhost:8000/api/programs?dataset_id=${datasetId}&include_department=true`
+        `${API_BASE_URL}/api/programs?dataset_id=${datasetId}&include_department=true`
       )
       
       if (programsResponse.ok) {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AttributeScatterPlot } from '../components/AttributeScatterPlot'
 import { ProgramDrawer } from '../components/ProgramDrawer'
+import { API_BASE_URL } from '../config/api';
 
 interface ProgramData {
   id: number
@@ -81,7 +82,7 @@ export function Attributes() {
     try {
       if (showCategories) {
         const response = await fetch(
-          `http://localhost:8000/api/charts/program-categories?dataset_id=${datasetId}`
+          `${API_BASE_URL}/api/charts/program-categories?dataset_id=${datasetId}`
         )
         if (response.ok) {
           const result = await response.json()
@@ -109,7 +110,7 @@ export function Attributes() {
         }
       } else {
         const response = await fetch(
-          `http://localhost:8000/api/charts/bubbles/attributes?dataset_id=${datasetId}&attr=${selectedAttribute}`
+          `${API_BASE_URL}/api/charts/bubbles/attributes?dataset_id=${datasetId}&attr=${selectedAttribute}`
         )
         if (response.ok) {
           const result = await response.json()

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Users, DollarSign, Building, Star } from 'lucide-react'
 import { LineItemsTable } from './LineItemsTable'
+import { API_BASE_URL } from '../config/api';
 
 interface ProgramDetail {
   id: number
@@ -61,7 +62,7 @@ export function ProgramDrawer({ programId, isOpen, onClose }: ProgramDrawerProps
     setLoading(true)
     try {
       const response = await fetch(
-        `http://localhost:8000/api/programs/${programId}?dataset_id=${datasetId}`
+        `${API_BASE_URL}/api/programs/${programId}?dataset_id=${datasetId}`
       )
       if (response.ok) {
         const data = await response.json()

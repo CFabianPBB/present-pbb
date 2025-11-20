@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Search, ExternalLink } from 'lucide-react'
+import { API_BASE_URL } from '../config/api';
 
 interface Program {
   id: number
@@ -58,7 +59,7 @@ export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProp
         ...(filters.search && { q: filters.search })
       })
 
-      const response = await fetch(`http://localhost:8000/api/programs?${params}`)
+      const response = await fetch(`${API_BASE_URL}/api/programs?${params}`)
       if (response.ok) {
         const data = await response.json()
         setPrograms(data.programs || [])

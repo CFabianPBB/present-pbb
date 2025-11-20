@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BubbleChart } from '../components/BubbleChart'
 import { ProgramTable } from '../components/ProgramTable'
 import { ProgramDrawer } from '../components/ProgramDrawer'
+import { API_BASE_URL } from '../config/api';
 
 interface BubbleData {
   id: number
@@ -58,7 +59,7 @@ export function PolicyQuestions() {
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/charts/bubbles/results?dataset_id=${datasetId}&priority=${encodeURIComponent(selectedPriority)}`
+        `${API_BASE_URL}/api/charts/bubbles/results?dataset_id=${datasetId}&priority=${encodeURIComponent(selectedPriority)}`
       )
       if (response.ok) {
         const result = await response.json()

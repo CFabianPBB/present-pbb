@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 interface UploadResult {
   success: boolean;
@@ -36,7 +37,7 @@ export default function MultiFileUpload() {
       formData.append('scores_file', scoresFile);
       formData.append('dataset_name', datasetName);
 
-      const response = await fetch('http://localhost:8000/api/admin/upload-multi', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/upload-multi`, {
         method: 'POST',
         headers: {
           'X-Admin-Secret': 'change-me-in-production' // Using your admin secret

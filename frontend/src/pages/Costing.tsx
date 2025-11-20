@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BubbleChart } from '../components/BubbleChart'
 import { ProgramDrawer } from '../components/ProgramDrawer'
+import { API_BASE_URL } from '../config/api';
 
 interface BubbleData {
   id: number
@@ -72,7 +73,7 @@ export function Costing() {
     
     try {
       const response = await fetch(
-        `http://localhost:8000/api/charts/bubbles/costing?dataset_id=${datasetId}&mode=${activeMode}`
+        `${API_BASE_URL}/api/charts/bubbles/costing?dataset_id=${datasetId}&mode=${activeMode}`
       )
       if (response.ok) {
         const result = await response.json()

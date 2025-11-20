@@ -701,7 +701,7 @@ export function HierarchicalTreemap({
                           duration: 3,  // Slower: 3 seconds instead of 2
                           repeat: Infinity,
                           ease: "easeInOut",
-                          repeatDelay: 0.5  // Small pause between pulses
+                          repeatDelay: 10  // Long pause: 10 seconds between pulses
                         }}
                         x={item.x}
                         y={item.y}

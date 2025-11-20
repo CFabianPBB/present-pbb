@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { API_BASE_URL } from '../config/api';
 
 interface LineItem {
   id: number
@@ -35,7 +36,7 @@ export function LineItemsTable({ programId, datasetId }: LineItemsTableProps) {
     setLoading(true)
     try {
       const response = await fetch(
-        `http://localhost:8000/api/programs/${programId}/line-items?dataset_id=${datasetId}`
+        `${API_BASE_URL}/api/programs/${programId}/line-items?dataset_id=${datasetId}`
       )
       if (response.ok) {
         const data = await response.json()
