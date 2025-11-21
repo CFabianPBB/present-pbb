@@ -21,7 +21,7 @@ services:
     name: present-pbb-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run build && cp public/_redirects dist/_redirects
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
