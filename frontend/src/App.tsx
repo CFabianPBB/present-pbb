@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Navigation } from './components/Navigation'
+import { DatasetRouter } from './components/DatasetRouter'
 import { Results } from './pages/Results'
 import { Attributes } from './pages/Attributes'
 import TaxpayerDividend from './pages/TaxpayerDividend'
@@ -13,11 +14,33 @@ function App() {
         <Navigation />
         <main className="container mx-auto px-4 py-8">
           <Routes>
+            {/* Admin route - always full access */}
+            <Route path="/admin" element={<Admin />} />
+            
+            {/* Dataset-specific routes - locked to one dataset */}
+            <Route path="/:slug" element={
+              <DatasetRouter>
+                {(datasetId, isLocked) => <Results lockedDatasetId={datasetId} isLocked={isLocked} />}
+              </DatasetRouter>
+            } />
+            
+            <Route path="/:slug/attributes" element={
+              <DatasetRouter>
+                {(datasetId, isLocked) => <Attributes lockedDatasetId={datasetId} isLocked={isLocked} />}
+              </DatasetRouter>
+            } />
+            
+            <Route path="/:slug/dividend" element={
+              <DatasetRouter>
+                {(datasetId, isLocked) => <TaxpayerDividend lockedDatasetId={datasetId} isLocked={isLocked} />}
+              </DatasetRouter>
+            } />
+            
+            {/* Default routes - full dataset picker */}
             <Route path="/" element={<Results />} />
             <Route path="/results" element={<Results />} />
             <Route path="/attributes" element={<Attributes />} />
             <Route path="/dividend" element={<TaxpayerDividend />} />
-            <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>
       </div>

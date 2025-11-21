@@ -44,7 +44,12 @@ interface DividendData {
   }
 }
 
-export default function TaxpayerDividend() {
+interface TaxpayerDividendProps {
+  lockedDatasetId?: string | null;
+  isLocked?: boolean;
+}
+
+export default function TaxpayerDividend({ lockedDatasetId, isLocked }: TaxpayerDividendProps = {}) {
   const [data, setData] = useState<DividendData | null>(null)
   const [loading, setLoading] = useState(true)
   const [householdSize, setHouseholdSize] = useState(1)
@@ -55,7 +60,7 @@ export default function TaxpayerDividend() {
   useEffect(() => {
     const fetchDividendData = async () => {
       try {
-        const datasetId = localStorage.getItem('selectedDatasetId')
+        const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
         console.log('Dataset ID from localStorage:', datasetId)
         
         if (!datasetId) {
@@ -93,7 +98,7 @@ export default function TaxpayerDividend() {
     return () => {
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [lockedDatasetId])
 
   if (loading) {
     return (

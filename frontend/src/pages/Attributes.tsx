@@ -37,7 +37,12 @@ const attributeOptions = [
   { key: 'mandate', label: 'Mandate', description: 'Legal or regulatory requirements' }
 ]
 
-export function Attributes() {
+interface AttributesProps {
+  lockedDatasetId?: string | null;
+  isLocked?: boolean;
+}
+
+export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) {
   const [selectedAttribute, setSelectedAttribute] = useState<string>('demand')
   const [programData, setProgramData] = useState<ProgramData[]>([])
   const [allProgramData, setAllProgramData] = useState<ProgramData[]>([])
@@ -68,10 +73,10 @@ export function Attributes() {
       window.removeEventListener('datasetChanged', handleDatasetChange)
       window.removeEventListener('datasetUploaded', handleDatasetChange)
     }
-  }, [selectedAttribute, showCategories])
+  }, [selectedAttribute, showCategories, lockedDatasetId])
 
   const loadData = async () => {
-    const datasetId = localStorage.getItem('selectedDatasetId')
+    const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
     if (!datasetId) {
       setLoading(false)
       return
@@ -175,7 +180,7 @@ export function Attributes() {
     if (allProgramData.length > 0) {
       applyFilters(allProgramData)
     }
-  }, [selectedDepartments, selectedFunds, selectedServiceTypes, selectedCategories, budgetRange, searchText])
+  }, [selectedDepartments, selectedFunds, selectedServiceTypes, selectedCategories, budgetRange, searchText, lockedDatasetId])
 
   const handlePointClick = (programId: number) => {
     setSelectedProgram(programId)

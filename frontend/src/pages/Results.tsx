@@ -22,7 +22,13 @@ interface Program {
   quartile: string
 }
 
-export function Results() {
+interface ResultsProps {
+  lockedDatasetId?: string | null;
+  isLocked?: boolean;
+}
+
+export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
+
   const [activeTab, setActiveTab] = useState<'community' | 'governance'>('community')
   const [spendingData, setSpendingData] = useState<Priority[]>([])
   const [programsData, setProgramsData] = useState<Program[]>([])
@@ -63,11 +69,12 @@ export function Results() {
       window.removeEventListener('datasetChanged', handleDatasetChange)
       window.removeEventListener('datasetUploaded', handleDatasetChange)
     }
-  }, [activeTab])
+  }, [activeTab, lockedDatasetId])
 
   const loadData = async () => {
-    const datasetId = localStorage.getItem('selectedDatasetId')
-    if (!datasetId) {
+  // Use locked dataset ID if provided, otherwise get from localStorage
+  const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
+  if (!datasetId) {
       setLoading(false)
       setError('No dataset selected. Please select a dataset first.')
       return

@@ -285,3 +285,19 @@ async def health_check(db: Session = Depends(get_db)):
             status_code=500, 
             detail=f"Health check failed: {str(e)}"
         )
+    
+@router.get("/dataset/by-slug/{slug}")
+def get_dataset_by_slug(slug: str, db: Session = Depends(get_db)):
+    """Get dataset by URL-friendly slug"""
+    # Convert slug back to potential dataset names
+    # e.g., "flagstaff-az" could match "Flagstaff AZ" or "flagstaff az"
+    
+    datasets = db.query(Dataset).all()
+    
+    for dataset in datasets:
+        # Create slug from dataset name
+        dataset_slug = dataset.name.lower().replace(' ', '-').replace('_', '-')
+        if dataset_slug == slug:
+            return dataset
+    
+    raise HTTPException(status_code=404, detail=f"Dataset not found for slug: {slug}")
