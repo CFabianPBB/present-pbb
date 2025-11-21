@@ -125,7 +125,7 @@ export default function TaxpayerDividend() {
           >
             <h1 className="text-4xl font-bold mb-4">Your Taxpayer Dividend</h1>
             <p className="text-xl text-blue-100 mb-8">
-              See how your tax dollars deliver real value and results for {data.dataset_name}
+              See how your tax dollars deliver real value and results through Priority Based Budgeting for {data.dataset_name}
             </p>
 
             {/* Key Stats */}
@@ -163,13 +163,13 @@ export default function TaxpayerDividend() {
               <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg p-6">
                 <div className="flex items-center mb-2">
                   <Zap className="w-5 h-5 mr-2" />
-                  <span className="text-yellow-50">Leverage Multiplier</span>
+                  <span className="text-yellow-50">PBB Leverage Multiplier</span>
                 </div>
                 <div className="text-3xl font-bold">
                   {data.leverage_ratio.toFixed(1)}x
                 </div>
                 <div className="text-sm text-yellow-50 mt-1">
-                  Your investment working harder
+                  Your investment amplifying impact
                 </div>
               </div>
             </div>
