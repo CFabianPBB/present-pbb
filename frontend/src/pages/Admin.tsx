@@ -224,79 +224,6 @@ export function Admin() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Dataset Management Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Manage Datasets</h2>
-        
-        {/* Delete success/error messages */}
-        {deleteSuccess && (
-          <div className="mb-4 bg-green-50 p-4 rounded-md">
-            <div className="flex items-center">
-              <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-              <p className="text-sm text-green-800">{deleteSuccess}</p>
-            </div>
-          </div>
-        )}
-        
-        {deleteError && (
-          <div className="mb-4 bg-red-50 p-4 rounded-md">
-            <div className="flex items-center">
-              <XCircle className="h-5 w-5 text-red-500 mr-3" />
-              <p className="text-sm text-red-800">{deleteError}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Datasets List */}
-        {loadingDatasets ? (
-          <div className="text-center py-8">
-            <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading datasets...</p>
-          </div>
-        ) : datasets.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>No datasets found. Upload your first dataset below!</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {datasets.map((dataset) => (
-              <div
-                key={dataset.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">{dataset.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    Created: {formatDate(dataset.created_at)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDeleteDataset(dataset.id, dataset.name)}
-                  disabled={deletingDatasetId === dataset.id}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                    deletingDatasetId === dataset.id
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'text-red-700 bg-red-50 hover:bg-red-100'
-                  }`}
-                >
-                  {deletingDatasetId === dataset.id ? (
-                    <>
-                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full"></div>
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Upload Section */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload PBB Data</h2>
@@ -654,6 +581,79 @@ export function Admin() {
             )}
           </ul>
         </div>
+      </div>
+
+      {/* Dataset Management Section */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Manage Datasets</h2>
+        
+        {/* Delete success/error messages */}
+        {deleteSuccess && (
+          <div className="mb-4 bg-green-50 p-4 rounded-md">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
+              <p className="text-sm text-green-800">{deleteSuccess}</p>
+            </div>
+          </div>
+        )}
+        
+        {deleteError && (
+          <div className="mb-4 bg-red-50 p-4 rounded-md">
+            <div className="flex items-center">
+              <XCircle className="h-5 w-5 text-red-500 mr-3" />
+              <p className="text-sm text-red-800">{deleteError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Datasets List */}
+        {loadingDatasets ? (
+          <div className="text-center py-8">
+            <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+            <p className="text-gray-600 mt-2">Loading datasets...</p>
+          </div>
+        ) : datasets.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No datasets found. Upload your first dataset above!</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {datasets.map((dataset) => (
+              <div
+                key={dataset.id}
+                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+              >
+                <div className="flex-1">
+                  <h3 className="font-medium text-gray-900">{dataset.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    Created: {formatDate(dataset.created_at)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDeleteDataset(dataset.id, dataset.name)}
+                  disabled={deletingDatasetId === dataset.id}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                    deletingDatasetId === dataset.id
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'text-red-700 bg-red-50 hover:bg-red-100'
+                  }`}
+                >
+                  {deletingDatasetId === dataset.id ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
