@@ -44,7 +44,9 @@ export function Navigation() {
             </div>
             
             <div className="hidden md:flex space-x-4">
-              {navItems.map((item) => {
+              {navItems
+                .filter(item => !isLocked || item.path !== '/admin')
+                .map((item) => {
                 // Build the path: if locked and not admin, prepend slug
                 const path = (isLocked && item.path !== '/admin') 
                   ? `/${slug}${item.path}`
