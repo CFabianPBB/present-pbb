@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { DatasetPicker } from './DatasetPicker'
 import tylerLogo from '../assets/talking-t-logo.svg'
+import { API_BASE_URL } from '../config/api'
 
 const navItems = [
   { path: '', label: 'Priorities' }, // Empty path for root
@@ -11,6 +13,7 @@ const navItems = [
 
 export function Navigation() {
   const location = useLocation()
+  const [datasetName, setDatasetName] = useState<string | null>(null)
   
   // Extract slug from URL if present
   // e.g., /flagstaff-az or /flagstaff-az/dividend -> slug = 'flagstaff-az'
@@ -25,6 +28,30 @@ export function Navigation() {
                    potentialSlug !== 'admin'
   
   const slug = isLocked ? potentialSlug : null
+
+  // Fetch dataset name when viewing a locked dataset page
+  useEffect(() => {
+    if (slug) {
+      fetchDatasetName(slug)
+    } else {
+      setDatasetName(null)
+    }
+  }, [slug])
+
+  const fetchDatasetName = async (datasetSlug: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/datasets`)
+      if (response.ok) {
+        const datasets = await response.json()
+        const dataset = datasets.find((d: any) => d.slug === datasetSlug)
+        if (dataset) {
+          setDatasetName(dataset.name)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dataset name:', error)
+    }
+  }
 
   return (
     <nav className="shadow-sm border-b" style={{ backgroundColor: '#003D79' }}>
@@ -41,6 +68,14 @@ export function Navigation() {
               <Link to="/" className="text-xl font-bold text-white hover:text-gray-200">
                 Present PBB
               </Link>
+              
+              {/* Dataset Name - Only shown when viewing a specific dataset */}
+              {datasetName && (
+                <div className="flex items-center space-x-2 ml-3">
+                  <span className="text-white text-opacity-50">|</span>
+                  <span className="text-lg font-semibold text-white">{datasetName}</span>
+                </div>
+              )}
             </div>
             
             <div className="hidden md:flex space-x-4">
