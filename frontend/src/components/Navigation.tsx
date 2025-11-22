@@ -40,13 +40,10 @@ export function Navigation() {
 
   const fetchDatasetName = async (datasetSlug: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/datasets`)
+      const response = await fetch(`${API_BASE_URL}/api/admin/dataset/by-slug/${datasetSlug}`)
       if (response.ok) {
-        const datasets = await response.json()
-        const dataset = datasets.find((d: any) => d.slug === datasetSlug)
-        if (dataset) {
-          setDatasetName(dataset.name)
-        }
+        const dataset = await response.json()
+        setDatasetName(dataset.name)
       }
     } catch (error) {
       console.error('Error fetching dataset name:', error)
