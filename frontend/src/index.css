@@ -34,3 +34,48 @@
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
 }
+
+/* Mobile-specific utilities */
+@layer utilities {
+  /* Prevent horizontal scroll on mobile */
+  .overflow-x-safe {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  
+  /* Touch-friendly tap targets */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better text rendering on mobile */
+  .text-rendering-optimized {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Responsive container adjustments */
+@media (max-width: 640px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Ensure modals work well on mobile */
+@media (max-width: 768px) {
+  .modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
+/* Mobile-friendly tooltips - hide on touch devices, show on hover for desktop */
+@media (hover: none) and (pointer: coarse) {
+  .tooltip-hover {
+    display: none;
+  }
+}

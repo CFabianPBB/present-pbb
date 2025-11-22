@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+
 
 interface Program {
   id: number
@@ -68,6 +69,12 @@ export function HierarchicalTreemap({
   const [selectedDepartments, setSelectedDepartments] = useState<Set<string>>(new Set())
   const [selectedQuartiles, setSelectedQuartiles] = useState<Set<string>>(new Set())
   const [colorScheme, setColorScheme] = useState<keyof typeof COLOR_SCHEMES>('blues')
+
+const [isTouchDevice, setIsTouchDevice] = useState(false)
+
+useEffect(() => {
+  setIsTouchDevice('ontouchstart' in window)
+}, [])
 
   // **FIX 1: Filter out invalid data that causes NaN errors**
   const validData = useMemo(() => {
@@ -346,6 +353,25 @@ export function HierarchicalTreemap({
     setMousePosition({ x: e.clientX, y: e.clientY })
   }
 
+  const handleTouchStart = (e: React.TouchEvent, item: any) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    setHoveredItem(item)
+    setMousePosition({ x: touch.clientX, y: touch.clientY })
+    
+    // Auto-hide tooltip after 3 seconds on touch
+    setTimeout(() => {
+      setHoveredItem(null)
+    }, 3000)
+  }
+
+  const handleTouchEnd = () => {
+    // Keep tooltip visible briefly
+    setTimeout(() => {
+      setHoveredItem(null)
+    }, 300)
+  }
+
   const handleMouseLeave = () => {
     setHoveredItem(null)
   }
@@ -450,9 +476,9 @@ export function HierarchicalTreemap({
   return (
     <div className="relative space-y-4">
       {/* Top Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
         {/* Breadcrumb */}
-        <div className="flex items-center space-x-2 text-sm text-gray-600">
+        <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
           <motion.button 
             onClick={goBackToDepartments}
             className={`hover:text-blue-600 transition-colors ${viewLevel === 'departments' ? 'font-semibold text-gray-900' : ''}`}
@@ -477,7 +503,7 @@ export function HierarchicalTreemap({
         </div>
 
         {/* Search */}
-        <div className="flex-1 max-w-md relative">
+        <div className="flex-1 sm:max-w-md relative w-full">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -518,7 +544,7 @@ export function HierarchicalTreemap({
         {/* Filter Toggle Button */}
         <motion.button
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+          className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border transition-colors text-sm sm:text-base w-full sm:w-auto ${
             showFilters ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
           } ${hasActiveFilters ? 'ring-2 ring-blue-300' : ''}`}
           whileHover={{ scale: 1.02 }}
@@ -544,7 +570,7 @@ export function HierarchicalTreemap({
             exit={{ opacity: 0, height: 0 }}
             className="bg-white border rounded-lg p-4 shadow-sm overflow-hidden"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               {/* Budget Range */}
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -629,9 +655,9 @@ export function HierarchicalTreemap({
       </AnimatePresence>
 
       {/* Treemap Container with Legend */}
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* SVG Container */}
-        <div className="relative bg-white border rounded-lg overflow-hidden">
+        <div className="relative bg-white border rounded-lg overflow-hidden w-full">
           <svg width={width} height={height}>
           <AnimatePresence>
             {layoutData.map((item: any, index) => {
@@ -687,6 +713,8 @@ export function HierarchicalTreemap({
                     onClick={() => handleItemClick(item)}
                     onMouseMove={(e: any) => handleMouseMove(e, item)}
                     onMouseLeave={handleMouseLeave}
+                    onTouchStart={(e) => handleTouchStart(e, item)}
+                    onTouchEnd={handleTouchEnd}
                   />
                   
                   <AnimatePresence>
@@ -724,7 +752,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="font-semibold pointer-events-none"
                         style={{ 
-                          fontSize: Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
+                          fontSize: width < 640 
+                            ? Math.min(11, Math.max(8, Math.min(item.width / 12, item.height / 5)))
+                            : Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
                           dominantBaseline: 'middle',
                           fill: 'none',
                           stroke: '#000000',
@@ -744,7 +774,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="font-semibold fill-white pointer-events-none"
                         style={{ 
-                          fontSize: Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
+                          fontSize: width < 640 
+                            ? Math.min(11, Math.max(8, Math.min(item.width / 12, item.height / 5)))
+                            : Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
                           dominantBaseline: 'middle',
                           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
                         }}
@@ -765,7 +797,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="pointer-events-none font-bold"
                         style={{ 
-                          fontSize: Math.min(12, Math.max(8, item.width / 15)),
+                          fontSize: width < 640 
+                            ? Math.min(10, Math.max(7, item.width / 18))
+                            : Math.min(12, Math.max(8, item.width / 15)),
                           fill: 'none',
                           stroke: '#000000',
                           strokeWidth: 3,
@@ -782,7 +816,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="fill-white pointer-events-none font-bold"
                         style={{ 
-                          fontSize: Math.min(12, Math.max(8, item.width / 15)),
+                          fontSize: width < 640 
+                            ? Math.min(10, Math.max(7, item.width / 18))
+                            : Math.min(12, Math.max(8, item.width / 15)),
                           filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))'
                         }}
                       >
@@ -800,7 +836,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="pointer-events-none text-xs"
                         style={{ 
-                          fontSize: Math.min(10, Math.max(8, item.width / 20)),
+                          fontSize: width < 640 
+                            ? Math.min(9, Math.max(7, item.width / 24))
+                            : Math.min(10, Math.max(8, item.width / 20)),
                           fill: 'none',
                           stroke: '#000000',
                           strokeWidth: 3,
@@ -817,7 +855,9 @@ export function HierarchicalTreemap({
                         textAnchor="middle"
                         className="fill-white pointer-events-none text-xs"
                         style={{ 
-                          fontSize: Math.min(10, Math.max(8, item.width / 20)),
+                          fontSize: width < 640 
+                            ? Math.min(9, Math.max(7, item.width / 24))
+                            : Math.min(10, Math.max(8, item.width / 20)),
                           filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))'
                         }}
                       >
@@ -839,10 +879,15 @@ export function HierarchicalTreemap({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="fixed z-50 pointer-events-none"
+              className="fixed z-50 pointer-events-none max-w-[90vw] sm:max-w-sm"
               style={{
-                left: mousePosition.x + 15,
-                top: mousePosition.y + 15,
+                left: isTouchDevice 
+                  ? 'auto'
+                  : mousePosition.x + 15,
+                right: isTouchDevice ? '16px' : 'auto',
+                top: isTouchDevice
+                  ? '80px'
+                  : mousePosition.y + 15,
               }}
             >
               <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 max-w-sm">
@@ -945,9 +990,10 @@ export function HierarchicalTreemap({
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: 0.5 }}
-        className="bg-white p-3 rounded-lg shadow-lg border border-gray-200 self-start"
-        style={{ minWidth: '180px' }}
+        className="bg-white p-3 rounded-lg shadow-lg border border-gray-200 self-start w-full lg:w-auto"
+        style={{ minWidth: 'auto' }}
       >
+      
         <div className="text-xs space-y-2">
           <div className="font-semibold text-gray-800">
             {viewLevel === 'departments' ? 'Departments' : 'Programs'}
@@ -993,7 +1039,7 @@ export function HierarchicalTreemap({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
-        className="text-sm text-gray-600"
+        className="text-xs sm:text-sm text-gray-600"
       >
         {viewLevel === 'departments' ? (
           <p>💡 <strong>Tip:</strong> Use filters to narrow down programs, hover for details, click to drill down, or search to highlight.</p>
