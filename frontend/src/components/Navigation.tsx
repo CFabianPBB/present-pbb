@@ -69,7 +69,7 @@ export function Navigation() {
                 alt="Tyler Technologies" 
                 className="h-7 w-7 md:h-8 md:w-8"
               />
-              <Link to="/" className="text-lg md:text-xl font-bold text-white hover:text-gray-200">
+              <Link to={isLocked ? `/${slug}` : "/"} className="text-lg md:text-xl font-bold text-white hover:text-gray-200">
                 Present PBB
               </Link>
               
