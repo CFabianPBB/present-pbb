@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HierarchicalTreemap } from '../components/HierarchicalTreemap'
+import { ResponsiveTreemapWrapper } from '../components/ResponsiveTreemapWrapper'
 import { ProgramDrawer } from '../components/ProgramDrawer'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { InsightsPanel } from '../components/InsightsPanel'
@@ -300,14 +300,12 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
 
           {Array.isArray(programsData) && programsData.length > 0 ? (
             <div className="w-full">
-              <HierarchicalTreemap
+              <ResponsiveTreemapWrapper
                 data={programsData}
                 selectedPriority={selectedPriority}
                 priorityGroup={activeTab}
                 onProgramClick={handleProgramClick}
                 onViewLevelChange={handleViewLevelChange}
-                width={1000}
-                height={500}
               />
               
               {/* Instructions */}
