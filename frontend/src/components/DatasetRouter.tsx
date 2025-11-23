@@ -29,6 +29,7 @@ export function DatasetRouter({ children }: DatasetRouterProps) {
         })
         .then(data => {
           setDatasetId(data.id);
+          localStorage.setItem('selectedDatasetId', data.id);
           setLoading(false);
         })
         .catch(err => {
