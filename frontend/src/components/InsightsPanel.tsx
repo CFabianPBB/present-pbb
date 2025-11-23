@@ -285,15 +285,15 @@ export function InsightsPanel({
       {/* Header - Always Visible */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between p-3 sm:p-4 hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <Info className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">
+          <Info className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900">
             Key Insights
           </h3>
           {insights.departmentInsights && (
-            <span className="text-sm text-gray-500">
+            <span className="hidden sm:inline text-sm text-gray-500">
               — Exploring {insights.departmentInsights.name}
             </span>
           )}
@@ -311,7 +311,7 @@ export function InsightsPanel({
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <div className="p-4 pt-0 space-y-4">
+            <div className="p-3 sm:p-4 pt-0 space-y-3 sm:space-y-4">
               {/* Key Metrics Grid */}
               <AnimatePresence mode="wait">
                 <motion.div 
@@ -319,41 +319,41 @@ export function InsightsPanel({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="grid grid-cols-3 gap-3"
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-3"
                 >
                   {insights.departmentInsights ? (
                     <>
                       {/* Department-specific metrics */}
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <DollarSign className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium text-gray-600">Dept Budget</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Dept Budget</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">
                           {formatCurrency(insights.departmentInsights.totalBudget)}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           {insights.departmentInsights.percentOfTotal.toFixed(1)}% of total
                         </p>
                       </div>
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <TrendingUp className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium text-gray-600">Avg Program</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Avg Program</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">
                           {formatCurrency(insights.departmentInsights.avgProgramCost)}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           {insights.departmentInsights.programCount} programs
                         </p>
                       </div>
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <DollarSign className="h-4 w-4 text-purple-600" />
-                          <span className="text-sm font-medium text-gray-600">Cost Range</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Cost Range</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">
                           {insights.departmentInsights.costRange.toFixed(0)}x
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
@@ -364,30 +364,30 @@ export function InsightsPanel({
                   ) : (
                     <>
                       {/* General stats */}
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <DollarSign className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium text-gray-600">Total Budget</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Total Budget</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">{formatCurrency(insights.totalBudget)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(insights.totalBudget)}</p>
                         <p className="text-xs text-gray-500 mt-1">Across {insights.programCount} programs</p>
                       </div>
 
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <TrendingUp className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium text-gray-600">Median Cost</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Median Cost</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">{formatCurrency(insights.medianProgramCost)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(insights.medianProgramCost)}</p>
                         <p className="text-xs text-gray-500 mt-1">Half above, half below</p>
                       </div>
 
-                      <div className="bg-white rounded-lg p-4 border border-blue-100">
+                      <div className="bg-white rounded-lg p-3 sm:p-4 border border-blue-100">
                         <div className="flex items-center gap-2 mb-2">
                           <Target className="h-4 w-4 text-purple-600" />
-                          <span className="text-sm font-medium text-gray-600">Concentration</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-600">Concentration</span>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900">{insights.concentration.toFixed(0)}%</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gray-900">{insights.concentration.toFixed(0)}%</p>
                         <p className="text-xs text-gray-500 mt-1">In top 10% of programs</p>
                       </div>
                     </>
@@ -400,19 +400,19 @@ export function InsightsPanel({
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200"
+                  className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-3 sm:p-4 border border-indigo-200"
                 >
-                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Target className="h-4 w-4 text-indigo-600" />
                     {selectedPriority} Alignment
                   </h4>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3">
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <CheckCircle className="h-3 w-3 text-green-600" />
                         <span className="text-xs text-gray-600">High (4-5)</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{insights.priorityInsights.highAlignmentCount}</p>
+                      <p className="text-base sm:text-lg font-bold text-gray-900">{insights.priorityInsights.highAlignmentCount}</p>
                       <p className="text-xs text-gray-500">{formatCurrency(insights.priorityInsights.highAlignmentBudget)}</p>
                     </div>
                     <div className="text-center">
@@ -420,14 +420,14 @@ export function InsightsPanel({
                         <AlertCircle className="h-3 w-3 text-amber-600" />
                         <span className="text-xs text-gray-600">Medium (3-4)</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{insights.priorityInsights.mediumAlignmentCount}</p>
+                      <p className="text-base sm:text-lg font-bold text-gray-900">{insights.priorityInsights.mediumAlignmentCount}</p>
                     </div>
                     <div className="text-center">
                       <div className="flex items-center justify-center gap-1 mb-1">
                         <AlertCircle className="h-3 w-3 text-red-600" />
                         <span className="text-xs text-gray-600">Low (0-3)</span>
                       </div>
-                      <p className="text-lg font-bold text-gray-900">{insights.priorityInsights.lowAlignmentCount}</p>
+                      <p className="text-base sm:text-lg font-bold text-gray-900">{insights.priorityInsights.lowAlignmentCount}</p>
                     </div>
                   </div>
                   <div className="pt-3 border-t border-indigo-200">
