@@ -6,7 +6,8 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.services.multi_file_ingestion import MultiFileIngestionService
 from app.services.ingestion import ExcelIngestionService  # Keep old service for backup
-from app.models.models import Dataset
+from app.models.models import Dataset, Organization  # ADDED Organization
+from typing import Optional  # ADDED
 import logging
 import traceback
 from typing import List
@@ -27,14 +28,16 @@ async def upload_multiple_files(
     costs_file: UploadFile = File(..., description="Program Costs Revenue Excel file"),
     scores_file: UploadFile = File(..., description="Program Scores Excel file"),
     dataset_name: str = Form(..., description="Name for the new dataset"),
-    population: int = Form(75000, description="Population served by this municipality"),  # ADDED THIS
+    population: int = Form(75000, description="Population served by this municipality"),
+    organization_id: Optional[str] = Form(None, description="Optional organization ID"),  # NEW
     db: Session = Depends(get_db),
     _: bool = Depends(verify_admin_secret)
 ):
     """Upload and process multiple Excel files to create a complete dataset"""
     
     logger.info(f"Starting multi-file upload for dataset: {dataset_name}")
-    logger.info(f"Population: {population}")  # ADDED THIS
+    logger.info(f"Population: {population}")
+    logger.info(f"Organization ID: {organization_id}")  # NEW
     logger.info(f"Costs file: {costs_file.filename} ({costs_file.size} bytes)")
     logger.info(f"Scores file: {scores_file.filename} ({scores_file.size} bytes)")
     
@@ -57,6 +60,13 @@ async def upload_multiple_files(
                     status_code=400, 
                     detail=f"{name.title()} file too large. Maximum size is 100MB"
                 )
+        
+        # Validate organization exists if provided (NEW)
+        if organization_id:
+            org = db.query(Organization).filter(Organization.id == organization_id).first()
+            if not org:
+                raise HTTPException(status_code=404, detail="Organization not found")
+            logger.info(f"Dataset will be assigned to organization: {org.name}")
         
         # Test database connection
         logger.info("Testing database connection...")
@@ -93,7 +103,8 @@ async def upload_multiple_files(
                 costs_file_bytes=costs_content,
                 scores_file_bytes=scores_content,
                 dataset_name=dataset_name,
-                population=population  # ADDED THIS
+                population=population,
+                organization_id=organization_id  # NEW - pass to service
             )
             
             logger.info(f"Multi-file ingestion completed successfully: {result}")
@@ -101,7 +112,8 @@ async def upload_multiple_files(
             return {
                 "message": "Files uploaded and processed successfully",
                 "dataset_name": dataset_name,
-                "population": population,  # ADDED THIS
+                "population": population,
+                "organization_id": organization_id,  # NEW
                 "costs_filename": costs_file.filename,
                 "scores_filename": scores_file.filename,
                 "dataset_id": result.get("dataset_id"),
@@ -202,6 +214,63 @@ async def upload_excel(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+# NEW ENDPOINT - Update dataset properties
+@router.put("/dataset/{dataset_id}")
+async def update_dataset(
+    dataset_id: str,
+    name: Optional[str] = Form(None),
+    population: Optional[int] = Form(None),
+    organization_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_admin_secret)
+):
+    """Update dataset properties (name, population, organization assignment)"""
+    
+    logger.info(f"Update request for dataset: {dataset_id}")
+    
+    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    # Update fields if provided
+    if name is not None:
+        logger.info(f"Updating name from '{dataset.name}' to '{name}'")
+        dataset.name = name
+    
+    if population is not None:
+        if population <= 0:
+            raise HTTPException(status_code=400, detail="Population must be greater than 0")
+        logger.info(f"Updating population from {dataset.population} to {population}")
+        dataset.population = population
+    
+    if organization_id is not None:
+        if organization_id:  # Not empty string
+            org = db.query(Organization).filter(Organization.id == organization_id).first()
+            if not org:
+                raise HTTPException(status_code=404, detail="Organization not found")
+            logger.info(f"Assigning dataset to organization: {org.name}")
+        else:
+            logger.info(f"Making dataset standalone (removing organization)")
+        dataset.organization_id = organization_id or None
+    
+    try:
+        db.commit()
+        db.refresh(dataset)
+        logger.info(f"Successfully updated dataset: {dataset.name}")
+        
+        return {
+            "id": str(dataset.id),
+            "name": dataset.name,
+            "population": dataset.population,
+            "organization_id": str(dataset.organization_id) if dataset.organization_id else None,
+            "organization_name": dataset.organization.name if dataset.organization else None,
+            "success": True
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating dataset: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating dataset: {str(e)}")
 
 @router.delete("/dataset/{dataset_id}")
 async def delete_dataset(

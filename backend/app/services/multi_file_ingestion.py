@@ -22,7 +22,8 @@ class MultiFileIngestionService:
         costs_file_bytes: bytes, 
         scores_file_bytes: bytes, 
         dataset_name: str,
-        population: int = 75000
+        population: int = 75000,
+        organization_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Process both the Program Costs and Program Scores files"""
         

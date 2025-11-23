@@ -5,6 +5,21 @@ from sqlalchemy.sql import func
 import uuid
 from app.core.database import Base
 
+class Organization(Base):
+    __tablename__ = "organizations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Feature toggles - control which menu items are visible
+    show_priorities = Column(Boolean, default=True)
+    show_taxpayer_dividend = Column(Boolean, default=True)
+    show_strategic_overview = Column(Boolean, default=True)
+    
+    # Relationships
+    datasets = relationship("Dataset", back_populates="organization")
+
 class Dataset(Base):
     __tablename__ = "datasets"
     
@@ -13,10 +28,14 @@ class Dataset(Base):
     population = Column(Integer, default=75000)  # Population served by this municipality
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # Optional organization relationship
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    
     # Relationships
+    organization = relationship("Organization", back_populates="datasets")
     programs = relationship("Program", back_populates="dataset", cascade="all, delete-orphan")
     priorities = relationship("Priority", back_populates="dataset", cascade="all, delete-orphan")
-    org_units = relationship("OrgUnit", back_populates="dataset", cascade="all, delete-orphan")  # ADDED THIS
+    org_units = relationship("OrgUnit", back_populates="dataset", cascade="all, delete-orphan")
 
 class Program(Base):
     __tablename__ = "programs"
@@ -64,7 +83,7 @@ class OrgUnit(Base):
     activity = Column(String)
     
     # Relationships
-    dataset = relationship("Dataset", back_populates="org_units")  # ADDED THIS
+    dataset = relationship("Dataset", back_populates="org_units")
     line_items = relationship("LineItem", back_populates="org_unit", cascade="all, delete-orphan")
 
 class LineItem(Base):

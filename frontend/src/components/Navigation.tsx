@@ -5,16 +5,33 @@ import { DatasetPicker } from './DatasetPicker'
 import tylerLogo from '../assets/talking-t-logo.svg'
 import { API_BASE_URL } from '../config/api'
 
-const navItems = [
-  { path: '', label: 'Priorities' }, // Empty path for root
-  { path: '/dividend', label: 'Taxpayer Dividend' },
-  { path: '/attributes', label: 'Strategic Overview' },
-  { path: '/admin', label: 'Admin' },
+// NEW: Interface for feature flags
+interface FeatureFlags {
+  show_priorities: boolean
+  show_taxpayer_dividend: boolean
+  show_strategic_overview: boolean
+}
+
+// NEW: Define all nav items with their feature flag requirements
+const allNavItems = [
+  { path: '', label: 'Priorities', featureKey: 'show_priorities' as keyof FeatureFlags },
+  { path: '/dividend', label: 'Taxpayer Dividend', featureKey: 'show_taxpayer_dividend' as keyof FeatureFlags },
+  { path: '/attributes', label: 'Strategic Overview', featureKey: 'show_strategic_overview' as keyof FeatureFlags },
+  { path: '/admin', label: 'Admin', featureKey: null }, // Always visible
 ]
 
 export function Navigation() {
   const location = useLocation()
   const [datasetName, setDatasetName] = useState<string | null>(null)
+  const [datasetId, setDatasetId] = useState<string | null>(null)
+  
+  // NEW: Feature flags state
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({
+    show_priorities: true,
+    show_taxpayer_dividend: true,
+    show_strategic_overview: true
+  })
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   // Extract slug from URL if present
@@ -31,12 +48,19 @@ export function Navigation() {
   
   const slug = isLocked ? potentialSlug : null
 
-  // Fetch dataset name when viewing a locked dataset page
+  // MODIFIED: Fetch dataset info AND feature flags when viewing a locked dataset page
   useEffect(() => {
     if (slug) {
-      fetchDatasetName(slug)
+      fetchDatasetInfo(slug)
     } else {
       setDatasetName(null)
+      setDatasetId(null)
+      // Reset to all features enabled when not locked to a dataset
+      setFeatureFlags({
+        show_priorities: true,
+        show_taxpayer_dividend: true,
+        show_strategic_overview: true
+      })
     }
   }, [slug])
 
@@ -45,17 +69,42 @@ export function Navigation() {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
-  const fetchDatasetName = async (datasetSlug: string) => {
+  // MODIFIED: Fetch both dataset name AND feature flags
+  const fetchDatasetInfo = async (datasetSlug: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/dataset/by-slug/${datasetSlug}`)
-      if (response.ok) {
-        const dataset = await response.json()
+      // First get the dataset by slug
+      const datasetResponse = await fetch(`${API_BASE_URL}/api/admin/dataset/by-slug/${datasetSlug}`)
+      if (datasetResponse.ok) {
+        const dataset = await datasetResponse.json()
         setDatasetName(dataset.name)
+        setDatasetId(dataset.id)
+        
+        // NEW: Then fetch feature flags for this dataset
+        const flagsResponse = await fetch(`${API_BASE_URL}/api/dataset/${dataset.id}/features`)
+        if (flagsResponse.ok) {
+          const flags = await flagsResponse.json()
+          setFeatureFlags(flags)
+        }
       }
     } catch (error) {
-      console.error('Error fetching dataset name:', error)
+      console.error('Error fetching dataset info:', error)
     }
   }
+
+  // NEW: Filter nav items based on feature flags and lock status
+  const visibleNavItems = allNavItems.filter(item => {
+    // Admin is always visible except when locked to a dataset
+    if (item.path === '/admin') {
+      return !isLocked
+    }
+    
+    // Check feature flag if this item requires one
+    if (item.featureKey) {
+      return featureFlags[item.featureKey]
+    }
+    
+    return true
+  })
 
   return (
     <nav className="shadow-sm border-b" style={{ backgroundColor: '#003D79' }}>
@@ -84,11 +133,9 @@ export function Navigation() {
               )}
             </div>
             
-            {/* Desktop Navigation */}
+            {/* Desktop Navigation - MODIFIED to use visibleNavItems */}
             <div className="hidden md:flex space-x-4">
-              {navItems
-                .filter(item => !isLocked || item.path !== '/admin')
-                .map((item) => {
+              {visibleNavItems.map((item) => {
                 // Build the path: if locked and not admin, prepend slug
                 const path = (isLocked && item.path !== '/admin') 
                   ? `/${slug}${item.path}`
@@ -138,7 +185,7 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - MODIFIED to use visibleNavItems */}
         {mobileMenuOpen && (
           <div className="md:hidden pb-4 space-y-2">
             {/* Dataset Name for Mobile */}
@@ -149,30 +196,28 @@ export function Navigation() {
             )}
             
             {/* Mobile Navigation Links */}
-            {navItems
-              .filter(item => !isLocked || item.path !== '/admin')
-              .map((item) => {
-                const path = (isLocked && item.path !== '/admin') 
-                  ? `/${slug}${item.path}`
-                  : (item.path || '/results')
-                
-                const isActive = location.pathname === path || 
-                               (item.path === '' && location.pathname === `/${slug}`)
-                
-                return (
-                  <Link
-                    key={item.label}
-                    to={path}
-                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                      isActive
-                        ? 'bg-white bg-opacity-20 text-white'
-                        : 'text-white text-opacity-90 hover:text-white hover:bg-white hover:bg-opacity-10'
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
+            {visibleNavItems.map((item) => {
+              const path = (isLocked && item.path !== '/admin') 
+                ? `/${slug}${item.path}`
+                : (item.path || '/results')
+              
+              const isActive = location.pathname === path || 
+                             (item.path === '' && location.pathname === `/${slug}`)
+              
+              return (
+                <Link
+                  key={item.label}
+                  to={path}
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    isActive
+                      ? 'bg-white bg-opacity-20 text-white'
+                      : 'text-white text-opacity-90 hover:text-white hover:bg-white hover:bg-opacity-10'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
             
             {/* Dataset Picker for Mobile (if not locked) */}
             {!isLocked && (
