@@ -45,6 +45,26 @@ const COLOR_SCHEMES = {
   reds: ['#fff5f0', '#fee0d2', '#fcbba1', '#fc9272', '#fb6a4a', '#ef3b2c', '#cb181d', '#a50f15', '#67000d'],
 }
 
+// Helper function to truncate text based on available width
+// Uses approximate character width based on font size
+function truncateText(text: string, availableWidth: number, fontSize: number): string {
+  // Approximate average character width as 0.55 * fontSize for semibold fonts
+  const avgCharWidth = fontSize * 0.55
+  // Add padding (10px each side) to keep text from touching edges
+  const maxChars = Math.floor((availableWidth - 20) / avgCharWidth)
+  
+  if (maxChars < 3) {
+    return '' // Too small to show any meaningful text
+  }
+  
+  if (text.length <= maxChars) {
+    return text
+  }
+  
+  // Truncate with ellipsis
+  return text.substring(0, maxChars - 1) + '…'
+}
+
 export function HierarchicalTreemap({ 
   data, 
   selectedPriority,
@@ -746,45 +766,48 @@ useEffect(() => {
                   {item.width > 60 && item.height > 40 && (
                     <>
                       {/* Text background stroke for better readability */}
-                      <text
-                        x={item.x + item.width / 2}
-                        y={item.y + item.height / 2}
-                        textAnchor="middle"
-                        className="font-semibold pointer-events-none"
-                        style={{ 
-                          fontSize: width < 640 
-                            ? Math.min(11, Math.max(8, Math.min(item.width / 12, item.height / 5)))
-                            : Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
-                          dominantBaseline: 'middle',
-                          fill: 'none',
-                          stroke: '#000000',
-                          strokeWidth: 4,
-                          strokeLinejoin: 'round',
-                          opacity: 0.3
-                        }}
-                      >
-                        {viewLevel === 'departments' ? item.name : item.name.length > Math.floor(item.width / 8) 
-                          ? item.name.substring(0, Math.floor(item.width / 8) - 3) + '...' 
-                          : item.name}
-                      </text>
-                      {/* Main text */}
-                      <text
-                        x={item.x + item.width / 2}
-                        y={item.y + item.height / 2}
-                        textAnchor="middle"
-                        className="font-semibold fill-white pointer-events-none"
-                        style={{ 
-                          fontSize: width < 640 
-                            ? Math.min(11, Math.max(8, Math.min(item.width / 12, item.height / 5)))
-                            : Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4))),
-                          dominantBaseline: 'middle',
-                          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
-                        }}
-                      >
-                        {viewLevel === 'departments' ? item.name : item.name.length > Math.floor(item.width / 8) 
-                          ? item.name.substring(0, Math.floor(item.width / 8) - 3) + '...' 
-                          : item.name}
-                      </text>
+                      {(() => {
+                        const fontSize = width < 640 
+                          ? Math.min(11, Math.max(8, Math.min(item.width / 12, item.height / 5)))
+                          : Math.min(14, Math.max(10, Math.min(item.width / 10, item.height / 4)))
+                        const displayText = truncateText(item.name, item.width, fontSize)
+                        if (!displayText) return null
+                        return (
+                          <>
+                            <text
+                              x={item.x + item.width / 2}
+                              y={item.y + item.height / 2}
+                              textAnchor="middle"
+                              className="font-semibold pointer-events-none"
+                              style={{ 
+                                fontSize,
+                                dominantBaseline: 'middle',
+                                fill: 'none',
+                                stroke: '#000000',
+                                strokeWidth: 4,
+                                strokeLinejoin: 'round',
+                                opacity: 0.3
+                              }}
+                            >
+                              {displayText}
+                            </text>
+                            {/* Main text */}
+                            <text
+                              x={item.x + item.width / 2}
+                              y={item.y + item.height / 2}
+                              textAnchor="middle"
+                              className="font-semibold fill-white pointer-events-none"
+                              style={{ 
+                                fontSize,
+                                dominantBaseline: 'middle',
+                                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
+                              }}
+                            >
+                              {displayText}
+                            </text>
+                          </>
+                        )
+                      })()}
                     </>
                   )}
                   
