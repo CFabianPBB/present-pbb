@@ -138,13 +138,13 @@ def embed_programs_for_dataset(db: Session, dataset_id: uuid.UUID) -> Dict[str, 
     program_ids = []
     
     for program in programs:
-        text = create_program_text({
+        prog_text = create_program_text({
             'name': program.name,
             'description': program.description,
             'service_type': program.service_type,
             'user_group': program.user_group
         })
-        program_texts.append(text)
+        program_texts.append(prog_text)
         program_ids.append(program.id)
     
     # Generate embeddings in batches of 100 (OpenAI limit is 2048)
@@ -159,7 +159,7 @@ def embed_programs_for_dataset(db: Session, dataset_id: uuid.UUID) -> Dict[str, 
         try:
             embeddings = generate_embeddings_batch(batch_texts)
             
-            for j, (prog_id, embedding, text) in enumerate(zip(batch_ids, embeddings, batch_texts)):
+            for j, (prog_id, embedding, prog_text) in enumerate(zip(batch_ids, embeddings, batch_texts)):
                 if embedding is None:
                     errors.append(f"Failed to embed program {prog_id}")
                     continue
@@ -175,13 +175,13 @@ def embed_programs_for_dataset(db: Session, dataset_id: uuid.UUID) -> Dict[str, 
                         text("""
                             UPDATE program_embeddings 
                             SET embedding = :embedding, 
-                                embedded_text = :text,
+                                embedded_text = :prog_text,
                                 updated_at = NOW()
                             WHERE program_id = :program_id
                         """),
                         {
                             "embedding": str(embedding),
-                            "text": text[:1000],  # Truncate for storage
+                            "prog_text": prog_text[:1000],  # Truncate for storage
                             "program_id": prog_id
                         }
                     )
@@ -191,13 +191,13 @@ def embed_programs_for_dataset(db: Session, dataset_id: uuid.UUID) -> Dict[str, 
                         text("""
                             INSERT INTO program_embeddings 
                             (dataset_id, program_id, embedding, embedded_text, created_at, updated_at)
-                            VALUES (:dataset_id, :program_id, :embedding, :text, NOW(), NOW())
+                            VALUES (:dataset_id, :program_id, :embedding, :prog_text, NOW(), NOW())
                         """),
                         {
                             "dataset_id": str(dataset_id),
                             "program_id": prog_id,
                             "embedding": str(embedding),
-                            "text": text[:1000]
+                            "prog_text": prog_text[:1000]
                         }
                     )
                 
