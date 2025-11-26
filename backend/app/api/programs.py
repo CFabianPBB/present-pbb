@@ -468,10 +468,20 @@ async def get_sankey_flow(
     
     total_flow = sum(flow_totals.values())
     
+    # Minimum value threshold - filter out items less than $1000
+    min_value_threshold = 1000
+    
+    # Filter out zero/tiny values from category and program totals
+    filtered_categories = {k: v for k, v in category_totals.items() if v >= min_value_threshold}
+    filtered_programs = {k: v for k, v in program_totals.items() if v["total"] >= min_value_threshold}
+    
+    # Also filter flow_totals to remove tiny flows
+    filtered_flows = {k: v for k, v in flow_totals.items() if v >= min_value_threshold}
+    
     # Determine which nodes to include based on limit
     # Sort by total and take top N
-    top_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
-    top_programs = sorted(program_totals.items(), key=lambda x: x[1]["total"], reverse=True)[:limit_nodes]
+    top_categories = sorted(filtered_categories.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
+    top_programs = sorted(filtered_programs.items(), key=lambda x: x[1]["total"], reverse=True)[:limit_nodes]
     
     top_category_names = {c[0] for c in top_categories}
     top_program_names = {p[0] for p in top_programs}
@@ -550,7 +560,7 @@ async def get_sankey_flow(
                         weight = (float(score_int or 0) / 4.0) if score_int else 0.1
                         flow_value = prog_cost * weight
                         
-                        if flow_value > 0:  # Only include non-zero flows
+                        if flow_value >= min_value_threshold:  # Only include meaningful flows
                             if priority_name not in priority_data:
                                 priority_data[priority_name] = 0
                             priority_data[priority_name] += flow_value
@@ -560,8 +570,9 @@ async def get_sankey_flow(
                                 "value": flow_value
                             })
             
-            # Add priority nodes
-            top_priorities = sorted(priority_data.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
+            # Add priority nodes - filter out small ones
+            filtered_priorities = {k: v for k, v in priority_data.items() if v >= min_value_threshold}
+            top_priorities = sorted(filtered_priorities.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
             for priority_name, total in top_priorities:
                 node_indices[f"priority_{priority_name}"] = len(nodes)
                 nodes.append({
@@ -585,9 +596,9 @@ async def get_sankey_flow(
     
     # Build links (only between nodes that made the cut)
     links = []
-    min_flow_value = total_flow * (min_flow_pct / 100)
+    min_flow_value = max(total_flow * (min_flow_pct / 100), min_value_threshold)
     
-    for (category, program), value in flow_totals.items():
+    for (category, program), value in filtered_flows.items():
         if category not in top_category_names or program not in top_program_names:
             continue
         if value < min_flow_value:

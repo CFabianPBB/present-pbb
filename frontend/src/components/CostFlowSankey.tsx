@@ -76,6 +76,12 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
   const [searchLoading, setSearchLoading] = useState(false)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   
+  // Expanded filter sections
+  const [expandedFilters, setExpandedFilters] = useState<{
+    departments: boolean
+    funds: boolean
+  }>({ departments: false, funds: false })
+  
   // Tooltip
   const [tooltip, setTooltip] = useState<{
     visible: boolean
@@ -850,7 +856,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                 Department
               </label>
               <div className="flex flex-wrap gap-2">
-                {filterOptions.departments.map(dept => (
+                {(expandedFilters.departments ? filterOptions.departments : filterOptions.departments.slice(0, 12)).map(dept => (
                   <button
                     key={dept}
                     onClick={() => toggleDepartment(dept)}
@@ -863,6 +869,14 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                     {dept}
                   </button>
                 ))}
+                {filterOptions.departments.length > 12 && (
+                  <button
+                    onClick={() => setExpandedFilters(prev => ({ ...prev, departments: !prev.departments }))}
+                    className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    {expandedFilters.departments ? 'Show less' : `+${filterOptions.departments.length - 12} more`}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -874,7 +888,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                 Fund
               </label>
               <div className="flex flex-wrap gap-2">
-                {filterOptions.funds.slice(0, 12).map(fund => (
+                {(expandedFilters.funds ? filterOptions.funds : filterOptions.funds.slice(0, 12)).map(fund => (
                   <button
                     key={fund}
                     onClick={() => toggleFund(fund)}
@@ -888,9 +902,12 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                   </button>
                 ))}
                 {filterOptions.funds.length > 12 && (
-                  <span className="px-3 py-1.5 text-sm text-gray-500">
-                    +{filterOptions.funds.length - 12} more
-                  </span>
+                  <button
+                    onClick={() => setExpandedFilters(prev => ({ ...prev, funds: !prev.funds }))}
+                    className="px-3 py-1.5 text-sm text-green-600 hover:text-green-800 font-medium"
+                  >
+                    {expandedFilters.funds ? 'Show less' : `+${filterOptions.funds.length - 12} more`}
+                  </button>
                 )}
               </div>
             </div>
