@@ -265,7 +265,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     }
     
     const sankeyData = {
-      nodes: data.nodes.map(n => ({ ...n })),
+      nodes: data.nodes.map(n => ({ ...n, originalValue: n.value })),  // Preserve original value
       links: validLinks.map(l => ({ ...l }))
     }
     
@@ -314,13 +314,16 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
       return programColors(node.id)
     }
     
+    // Filter out zero-value links
+    const visibleLinks = links.filter((l: any) => l.value > 0)
+    
     // Draw links
     const linkGroup = g.append('g')
       .attr('class', 'links')
       .attr('fill', 'none')
     
     const linkPaths = linkGroup.selectAll('path')
-      .data(links)
+      .data(visibleLinks)
       .join('path')
       .attr('d', sankeyLinkHorizontal())
       .attr('stroke', (d: any) => {
@@ -372,7 +375,11 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
       .attr('class', 'nodes')
     
     nodeGroup.selectAll('rect')
-      .data(nodes)
+    // Filter out nodes with zero computed value for rendering
+    const visibleNodes = nodes.filter((n: any) => n.value > 0)
+    
+    nodeGroup.selectAll('rect')
+      .data(visibleNodes)
       .join('rect')
       .attr('x', (d: any) => d.x0)
       .attr('y', (d: any) => d.y0)
@@ -411,7 +418,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                 {typeLabel}
               </div>
               <div className="text-blue-600 font-bold text-lg">
-                {formatCurrency(d.value)}
+                {formatCurrency(d.originalValue || d.value)}
               </div>
               <div className="text-gray-500 text-xs">
                 {d.percentage?.toFixed(1) || '0'}% of total
@@ -481,7 +488,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     const hasPriorities = data.nodes.some(n => n.type === 'priority')
     
     nodeGroup.selectAll('text')
-      .data(nodes)
+      .data(visibleNodes)
       .join('text')
       .attr('x', (d: any) => {
         if (d.type === 'category') return d.x0 - 4
