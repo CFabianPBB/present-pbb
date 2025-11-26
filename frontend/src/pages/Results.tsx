@@ -3,6 +3,7 @@ import { ResponsiveTreemapWrapper } from '../components/ResponsiveTreemapWrapper
 import { ProgramDrawer } from '../components/ProgramDrawer'
 import { WelcomeModal } from '../components/WelcomeModal'
 import { InsightsPanel } from '../components/InsightsPanel'
+import { CostFlowSankey } from '../components/CostFlowSankey'
 import { HelpCircle } from 'lucide-react'
 import { API_BASE_URL } from '../config/api';
 
@@ -34,11 +35,15 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
   const [programsData, setProgramsData] = useState<Program[]>([])
   const [selectedPriority, setSelectedPriority] = useState<string | null>(null)
   const [selectedProgram, setSelectedProgram] = useState<number | null>(null)
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null) // NEW: Track selected department
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [insightsCollapsed, setInsightsCollapsed] = useState(false)
+  const [showCostFlow, setShowCostFlow] = useState(false)
+
+  // Get the active dataset ID
+  const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
 
   // Check if user has seen welcome modal before
   useEffect(() => {
@@ -72,9 +77,9 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
   }, [activeTab, lockedDatasetId])
 
   const loadData = async () => {
-  // Use locked dataset ID if provided, otherwise get from localStorage
-  const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
-  if (!datasetId) {
+    // Use locked dataset ID if provided, otherwise get from localStorage
+    const currentDatasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
+    if (!currentDatasetId) {
       setLoading(false)
       setError('No dataset selected. Please select a dataset first.')
       return
@@ -86,12 +91,11 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
     try {
       // Load spending by priority data
       const spendingResponse = await fetch(
-        `${API_BASE_URL}/api/charts/spending-by-priority?dataset_id=${datasetId}&group=${activeTab}`
+        `${API_BASE_URL}/api/charts/spending-by-priority?dataset_id=${currentDatasetId}&group=${activeTab}`
       )
       
       if (spendingResponse.ok) {
         const spending = await spendingResponse.json()
-        // Ensure spending is an array
         const spendingArray = Array.isArray(spending) ? spending : []
         setSpendingData(spendingArray)
         
@@ -106,12 +110,11 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
 
       // Load all programs for treemap
       const programsResponse = await fetch(
-        `${API_BASE_URL}/api/programs?dataset_id=${datasetId}&include_department=true`
+        `${API_BASE_URL}/api/programs?dataset_id=${currentDatasetId}&include_department=true`
       )
       
       if (programsResponse.ok) {
         const programs = await programsResponse.json()
-        // Ensure programs is an array
         const programsArray = Array.isArray(programs) ? programs : []
         setProgramsData(programsArray)
       } else {
@@ -137,7 +140,6 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
     setSelectedProgram(program.id)
   }
 
-  // NEW: Handler for when treemap view level changes
   const handleViewLevelChange = (viewLevel: 'departments' | 'programs', department?: string | null) => {
     if (viewLevel === 'departments') {
       setSelectedDepartment(null)
@@ -156,7 +158,6 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
     }
   }
 
-  // Safe calculation of total budget - ensure programsData is array
   const totalBudget = Array.isArray(programsData) 
     ? programsData.reduce((sum, program) => sum + (program.total_cost || 0), 0)
     : 0
@@ -331,19 +332,45 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
         </div>
       </div>
 
-      {/* MOVED: Insights Panel - NOW BELOW TREEMAP */}
+      {/* Insights Panel */}
       {Array.isArray(programsData) && programsData.length > 0 && (
-        <InsightsPanel
-          programs={programsData}
-          selectedPriority={selectedPriority}
-          priorityGroup={activeTab}
-          isCollapsed={insightsCollapsed}
-          onToggle={() => setInsightsCollapsed(!insightsCollapsed)}
-          selectedDepartment={selectedDepartment}
-        />
+        <>
+          <InsightsPanel
+            programs={programsData}
+            selectedPriority={selectedPriority}
+            priorityGroup={activeTab}
+            isCollapsed={insightsCollapsed}
+            onToggle={() => setInsightsCollapsed(!insightsCollapsed)}
+            selectedDepartment={selectedDepartment}
+          />
+          
+          {/* Easter Egg Toggle - subtle Tyler Tech tribute */}
+          <div className="flex justify-end px-4 sm:px-6 -mt-2 mb-4">
+            <button
+              onClick={() => setShowCostFlow(!showCostFlow)}
+              className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all duration-300 ${
+                showCostFlow 
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md' 
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-600'
+              }`}
+              title={showCostFlow ? 'Hide Cost Flow Analysis' : 'Discover Cost Flow Analysis ✨'}
+            >
+              <span className="text-sm">🥚</span>
+              {showCostFlow && (
+                <span className="text-xs font-medium">Cost Flow Analysis</span>
+              )}
+            </button>
+          </div>
+        </>
       )}
 
-      {/* REMOVED: Community Priorities Summary section has been deleted */}
+      {/* Cost Flow Analysis - Sankey Diagram (Easter Egg Feature) */}
+      {showCostFlow && datasetId && Array.isArray(programsData) && programsData.length > 0 && (
+        <CostFlowSankey 
+          datasetId={datasetId}
+          className=""
+        />
+      )}
 
       {/* Program Detail Drawer */}
       {selectedProgram && (

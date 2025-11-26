@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from typing import Optional, List, Dict
+from collections import defaultdict
 from app.core.database import get_db
 from app.models.models import Dataset, Program, ProgramCost, ProgramAttribute, LineItem, OrgUnit, ProgramPriorityScore, Priority
 import uuid
@@ -315,6 +316,439 @@ async def get_line_items(
         })
     
     return {"line_items": result}
+
+
+# ============================================================================
+# SANKEY FLOW VISUALIZATION ENDPOINTS
+# ============================================================================
+
+@router.get("/sankey-flow")
+async def get_sankey_flow(
+    dataset_id: str = Query(...),
+    direction: str = Query("category_to_program", description="category_to_program or program_to_category"),
+    search: Optional[str] = Query(None, description="Search term for categories or programs (single, deprecated)"),
+    search_items: Optional[str] = Query(None, description="Multiple search terms separated by |||"),
+    department: Optional[str] = Query(None, description="Filter by department/user group (single, deprecated)"),
+    departments: Optional[str] = Query(None, description="Filter by departments (comma-separated)"),
+    fund: Optional[str] = Query(None, description="Filter by fund (single, deprecated)"),
+    funds: Optional[str] = Query(None, description="Filter by funds (comma-separated)"),
+    cost_type: Optional[str] = Query(None, description="Filter by cost type (single, deprecated)"),
+    cost_types: Optional[str] = Query(None, description="Filter by cost types (comma-separated)"),
+    include_priorities: bool = Query(False, description="Include priority layer for three-node Sankey"),
+    limit_nodes: int = Query(25, description="Max number of nodes on each side"),
+    min_flow_pct: float = Query(0.5, description="Minimum flow percentage to include"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregated cost flow data for Sankey diagram visualization.
+    
+    Returns nodes (categories and programs) and links (cost flows between them).
+    Supports bidirectional view: Categories → Programs or Programs → Categories.
+    Supports multi-select filters via comma-separated values.
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    # Parse multi-select search items
+    search_list = []
+    if search_items:
+        search_list = [s.strip() for s in search_items.split('|||') if s.strip()]
+    elif search:
+        search_list = [search]
+    
+    # Parse multi-select filters (support both singular and plural params for backwards compat)
+    dept_list = []
+    if departments:
+        dept_list = [d.strip() for d in departments.split(',') if d.strip()]
+    elif department:
+        dept_list = [department]
+    
+    fund_list = []
+    if funds:
+        fund_list = [f.strip() for f in funds.split(',') if f.strip()]
+    elif fund:
+        fund_list = [fund]
+    
+    cost_type_list = []
+    if cost_types:
+        cost_type_list = [c.strip() for c in cost_types.split(',') if c.strip()]
+    elif cost_type:
+        cost_type_list = [cost_type]
+    
+    # Base query - join line items with programs and org units
+    query = db.query(
+        LineItem.item_cat1,
+        LineItem.item_cat2,
+        LineItem.fund,
+        LineItem.cost_type,
+        LineItem.total_item_cost,
+        LineItem.allocation_pct,
+        Program.id.label('program_id'),
+        Program.name.label('program_name'),
+        Program.user_group,
+        OrgUnit.department
+    ).join(
+        Program, LineItem.program_id == Program.id
+    ).outerjoin(
+        OrgUnit, LineItem.org_unit_id == OrgUnit.id
+    ).filter(
+        LineItem.dataset_id == dataset_uuid,
+        LineItem.total_item_cost > 0
+    )
+    
+    # Apply multi-select filters
+    if dept_list:
+        # Check both OrgUnit.department and Program.user_group
+        dept_conditions = []
+        for dept in dept_list:
+            dept_conditions.append(OrgUnit.department.ilike(f"%{dept}%"))
+            dept_conditions.append(Program.user_group.ilike(f"%{dept}%"))
+        query = query.filter(or_(*dept_conditions))
+    
+    if fund_list:
+        fund_conditions = [LineItem.fund.ilike(f"%{f}%") for f in fund_list]
+        query = query.filter(or_(*fund_conditions))
+    
+    if cost_type_list:
+        cost_type_conditions = [LineItem.cost_type.ilike(f"%{ct}%") for ct in cost_type_list]
+        query = query.filter(or_(*cost_type_conditions))
+    
+    # Apply multi-select search filter based on direction
+    if search_list:
+        if direction == "category_to_program":
+            # Searching for categories - show all programs they flow to
+            search_conditions = []
+            for term in search_list:
+                search_conditions.append(LineItem.item_cat1.ilike(f"%{term}%"))
+                search_conditions.append(LineItem.item_cat2.ilike(f"%{term}%"))
+            query = query.filter(or_(*search_conditions))
+        else:
+            # Searching for programs - show all categories that flow in
+            search_conditions = [Program.name.ilike(f"%{term}%") for term in search_list]
+            query = query.filter(or_(*search_conditions))
+    
+    # Execute query
+    results = query.all()
+    
+    if not results:
+        return {
+            "nodes": [],
+            "links": [],
+            "total_flow": 0,
+            "filters_applied": {
+                "search_items": search_list,
+                "departments": dept_list,
+                "funds": fund_list,
+                "cost_types": cost_type_list
+            }
+        }
+    
+    # Aggregate flows: category -> program
+    flow_totals = defaultdict(float)
+    category_totals = defaultdict(float)
+    program_totals = defaultdict(lambda: {"total": 0, "user_group": None})
+    
+    for row in results:
+        # Use item_cat1 as primary category, fall back to item_cat2 or cost_type
+        category = row.item_cat1 or row.item_cat2 or row.cost_type or "Uncategorized"
+        program = row.program_name
+        cost = float(row.total_item_cost or 0)
+        
+        # Apply allocation percentage if available
+        if row.allocation_pct and row.allocation_pct > 0:
+            cost = cost * (float(row.allocation_pct) / 100)
+        
+        flow_key = (category, program)
+        flow_totals[flow_key] += cost
+        category_totals[category] += cost
+        program_totals[program]["total"] += cost
+        program_totals[program]["user_group"] = row.user_group
+    
+    total_flow = sum(flow_totals.values())
+    
+    # Determine which nodes to include based on limit
+    # Sort by total and take top N
+    top_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
+    top_programs = sorted(program_totals.items(), key=lambda x: x[1]["total"], reverse=True)[:limit_nodes]
+    
+    top_category_names = {c[0] for c in top_categories}
+    top_program_names = {p[0] for p in top_programs}
+    
+    # Build nodes list
+    nodes = []
+    node_indices = {}
+    
+    # Add category nodes (left side in category_to_program mode)
+    for i, (cat, total) in enumerate(top_categories):
+        node_indices[f"cat_{cat}"] = len(nodes)
+        nodes.append({
+            "id": f"cat_{cat}",
+            "name": cat[:40] + "..." if len(cat) > 40 else cat,  # Truncate long names
+            "fullName": cat,
+            "type": "category",
+            "value": total,
+            "percentage": (total / total_flow * 100) if total_flow > 0 else 0
+        })
+    
+    # Add program nodes (right side in category_to_program mode)  
+    for i, (prog, data) in enumerate(top_programs):
+        node_indices[f"prog_{prog}"] = len(nodes)
+        nodes.append({
+            "id": f"prog_{prog}",
+            "name": prog[:40] + "..." if len(prog) > 40 else prog,
+            "fullName": prog,
+            "type": "program",
+            "value": data["total"],
+            "percentage": (data["total"] / total_flow * 100) if total_flow > 0 else 0,
+            "userGroup": data["user_group"]
+        })
+    
+    # Add priority nodes and links if requested
+    priority_data = {}
+    program_to_priority_flows = []
+    top_priority_names = set()
+    
+    if include_priorities:
+        try:
+            # Get program IDs for the top programs
+            program_name_to_id = {}
+            program_query = db.query(Program.id, Program.name).filter(
+                Program.dataset_id == dataset_uuid,
+                Program.name.in_(top_program_names)
+            ).all()
+            for prog_id, prog_name in program_query:
+                program_name_to_id[prog_name] = prog_id
+            
+            # Query program priority scores with priority names
+            if program_name_to_id:
+                priority_query = db.query(
+                    ProgramPriorityScore.program_id,
+                    Priority.name.label('priority_name'),
+                    ProgramPriorityScore.score_int,  # Fixed: use score_int not score
+                    Program.name.label('program_name')
+                ).join(
+                    Priority, ProgramPriorityScore.priority_id == Priority.id
+                ).join(
+                    Program, ProgramPriorityScore.program_id == Program.id
+                ).filter(
+                    ProgramPriorityScore.dataset_id == dataset_uuid,
+                    ProgramPriorityScore.program_id.in_(program_name_to_id.values())
+                ).all()
+                
+                # Get program costs to calculate weighted flows
+                prog_costs = {}
+                for prog_name, data in top_programs:
+                    prog_costs[prog_name] = data["total"]
+                
+                for prog_id, priority_name, score_int, prog_name in priority_query:
+                    if prog_name and priority_name:
+                        # Use program's total cost weighted by priority score
+                        prog_cost = prog_costs.get(prog_name, 0)
+                        # score_int is typically 0-4, normalize to percentage
+                        weight = (float(score_int or 0) / 4.0) if score_int else 0.1
+                        flow_value = prog_cost * weight
+                        
+                        if flow_value > 0:  # Only include non-zero flows
+                            if priority_name not in priority_data:
+                                priority_data[priority_name] = 0
+                            priority_data[priority_name] += flow_value
+                            program_to_priority_flows.append({
+                                "program": prog_name,
+                                "priority": priority_name,
+                                "value": flow_value
+                            })
+            
+            # Add priority nodes
+            top_priorities = sorted(priority_data.items(), key=lambda x: x[1], reverse=True)[:limit_nodes]
+            for priority_name, total in top_priorities:
+                node_indices[f"priority_{priority_name}"] = len(nodes)
+                nodes.append({
+                    "id": f"priority_{priority_name}",
+                    "name": priority_name[:40] + "..." if len(priority_name) > 40 else priority_name,
+                    "fullName": priority_name,
+                    "type": "priority",
+                    "value": total,
+                    "percentage": (total / total_flow * 100) if total_flow > 0 else 0
+                })
+            
+            top_priority_names = {p[0] for p in top_priorities}
+        except Exception as e:
+            # If priority query fails, just continue without priorities
+            import traceback
+            print(f"Priority query failed: {e}")
+            traceback.print_exc()
+            priority_data = {}
+            program_to_priority_flows = []
+            top_priority_names = set()
+    
+    # Build links (only between nodes that made the cut)
+    links = []
+    min_flow_value = total_flow * (min_flow_pct / 100)
+    
+    for (category, program), value in flow_totals.items():
+        if category not in top_category_names or program not in top_program_names:
+            continue
+        if value < min_flow_value:
+            continue
+            
+        source_key = f"cat_{category}"
+        target_key = f"prog_{program}"
+        
+        if source_key in node_indices and target_key in node_indices:
+            # Swap source/target based on direction
+            if direction == "category_to_program":
+                links.append({
+                    "source": node_indices[source_key],
+                    "target": node_indices[target_key],
+                    "value": value,
+                    "sourceName": category,
+                    "targetName": program,
+                    "percentage": (value / total_flow * 100) if total_flow > 0 else 0
+                })
+            else:
+                links.append({
+                    "source": node_indices[target_key],
+                    "target": node_indices[source_key],
+                    "value": value,
+                    "sourceName": program,
+                    "targetName": category,
+                    "percentage": (value / total_flow * 100) if total_flow > 0 else 0
+                })
+    
+    # Add program -> priority links if priorities are included
+    if include_priorities and program_to_priority_flows:
+        for flow in program_to_priority_flows:
+            prog_key = f"prog_{flow['program']}"
+            priority_key = f"priority_{flow['priority']}"
+            
+            if prog_key in node_indices and priority_key in node_indices:
+                if flow['value'] >= min_flow_value:
+                    links.append({
+                        "source": node_indices[prog_key],
+                        "target": node_indices[priority_key],
+                        "value": flow['value'],
+                        "sourceName": flow['program'],
+                        "targetName": flow['priority'],
+                        "percentage": (flow['value'] / total_flow * 100) if total_flow > 0 else 0
+                    })
+    
+    # Sort links by value for better rendering
+    links.sort(key=lambda x: x["value"], reverse=True)
+    
+    # Get available filter options for the UI
+    available_funds = db.query(LineItem.fund).filter(
+        LineItem.dataset_id == dataset_uuid,
+        LineItem.fund.isnot(None)
+    ).distinct().all()
+    
+    available_departments = db.query(Program.user_group).filter(
+        Program.dataset_id == dataset_uuid,
+        Program.user_group.isnot(None)
+    ).distinct().all()
+    
+    return {
+        "nodes": nodes,
+        "links": links,
+        "total_flow": total_flow,
+        "node_count": {
+            "categories": len(top_categories),
+            "programs": len(top_programs),
+            "priorities": len(priority_data) if include_priorities else 0
+        },
+        "direction": direction,
+        "include_priorities": include_priorities,
+        "filters_applied": {
+            "search_items": search_list,
+            "departments": dept_list,
+            "funds": fund_list,
+            "cost_types": cost_type_list
+        },
+        "filter_options": {
+            "funds": sorted([f[0] for f in available_funds if f[0]]),
+            "departments": sorted([d[0] for d in available_departments if d[0]]),
+            "cost_types": ["Personnel", "NonPersonnel"]
+        }
+    }
+
+
+@router.get("/sankey-search")
+async def search_sankey_items(
+    dataset_id: str = Query(...),
+    q: str = Query(..., min_length=2),
+    search_type: str = Query("both", description="categories, programs, or both"),
+    limit: int = Query(20),
+    db: Session = Depends(get_db)
+):
+    """
+    Search endpoint for typeahead in the Sankey UI.
+    Returns matching categories and/or programs.
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    results = {"categories": [], "programs": []}
+    
+    if search_type in ("categories", "both"):
+        # Search unique categories
+        categories = db.query(
+            LineItem.item_cat1,
+            func.sum(LineItem.total_item_cost).label('total_cost'),
+            func.count(LineItem.id).label('item_count')
+        ).filter(
+            LineItem.dataset_id == dataset_uuid,
+            LineItem.item_cat1.ilike(f"%{q}%"),
+            LineItem.item_cat1.isnot(None)
+        ).group_by(
+            LineItem.item_cat1
+        ).order_by(
+            func.sum(LineItem.total_item_cost).desc()
+        ).limit(limit).all()
+        
+        results["categories"] = [
+            {
+                "name": cat.item_cat1,
+                "totalCost": float(cat.total_cost) if cat.total_cost else 0,
+                "itemCount": cat.item_count
+            }
+            for cat in categories
+        ]
+    
+    if search_type in ("programs", "both"):
+        # Search programs
+        programs = db.query(
+            Program.id,
+            Program.name,
+            Program.user_group,
+            ProgramCost.total_cost
+        ).join(
+            ProgramCost, Program.id == ProgramCost.program_id
+        ).filter(
+            Program.dataset_id == dataset_uuid,
+            Program.name.ilike(f"%{q}%")
+        ).order_by(
+            ProgramCost.total_cost.desc()
+        ).limit(limit).all()
+        
+        results["programs"] = [
+            {
+                "id": prog.id,
+                "name": prog.name,
+                "userGroup": prog.user_group,
+                "totalCost": float(prog.total_cost) if prog.total_cost else 0
+            }
+            for prog in programs
+        ]
+    
+    return results
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def extract_department_from_program(program: Program) -> Optional[str]:
     """Extract department name from program characteristics"""
