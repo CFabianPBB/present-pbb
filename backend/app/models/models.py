@@ -5,6 +5,14 @@ from sqlalchemy.sql import func
 import uuid
 from app.core.database import Base
 
+# Import Vector type for pgvector - will be available after migration
+try:
+    from pgvector.sqlalchemy import Vector
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    PGVECTOR_AVAILABLE = False
+    Vector = None
+
 class Organization(Base):
     __tablename__ = "organizations"
     
@@ -58,6 +66,7 @@ class Program(Base):
     priority_scores = relationship("ProgramPriorityScore", back_populates="program", cascade="all, delete-orphan")
     attributes = relationship("ProgramAttribute", back_populates="program", cascade="all, delete-orphan")
     line_items = relationship("LineItem", back_populates="program", cascade="all, delete-orphan")
+    embedding = relationship("ProgramEmbedding", back_populates="program", uselist=False, cascade="all, delete-orphan")
 
 class ProgramCost(Base):
     __tablename__ = "program_costs"
@@ -149,3 +158,29 @@ class ProgramAttribute(Base):
     
     # Relationships
     program = relationship("Program", back_populates="attributes")
+
+
+class ProgramEmbedding(Base):
+    """
+    Stores vector embeddings for semantic search.
+    Uses OpenAI's text-embedding-3-small model (1536 dimensions).
+    """
+    __tablename__ = "program_embeddings"
+    
+    id = Column(Integer, primary_key=True)
+    dataset_id = Column(UUID(as_uuid=True), ForeignKey("datasets.id"), nullable=False)
+    program_id = Column(Integer, ForeignKey("programs.id"), nullable=False, unique=True)
+    
+    # The text that was embedded (for debugging/reference)
+    embedded_text = Column(Text)
+    
+    # Vector embedding - 1536 dimensions for text-embedding-3-small
+    # Note: This column uses pgvector's VECTOR type, created via migration
+    # The actual column definition is: embedding VECTOR(1536)
+    # SQLAlchemy accesses it as a regular column, pgvector handles the type
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    program = relationship("Program", back_populates="embedding")

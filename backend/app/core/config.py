@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 class Settings(BaseSettings):
@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     ADMIN_SECRET: str = "change-me-in-production"
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "https://present-pbb-frontend.onrender.com"]
     
+    # OpenAI API for semantic search embeddings
+    OPENAI_API_KEY: Optional[str] = None
     
     class Config:
         env_file = ".env"

@@ -23,6 +23,7 @@ interface ResponsiveTreemapWrapperProps {
   priorityGroup?: 'community' | 'governance'
   onProgramClick?: (program: Program) => void
   onViewLevelChange?: (viewLevel: 'departments' | 'programs', department?: string | null) => void
+  datasetId?: string | null  // Required for semantic search
 }
 
 export function ResponsiveTreemapWrapper({ 
@@ -30,7 +31,8 @@ export function ResponsiveTreemapWrapper({
   selectedPriority,
   priorityGroup,
   onProgramClick,
-  onViewLevelChange 
+  onViewLevelChange,
+  datasetId
 }: ResponsiveTreemapWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 })
@@ -84,6 +86,7 @@ export function ResponsiveTreemapWrapper({
         onViewLevelChange={onViewLevelChange}
         width={dimensions.width}
         height={dimensions.height}
+        datasetId={datasetId}
       />
     </div>
   )

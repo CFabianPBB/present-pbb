@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Search, X, SlidersHorizontal, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { API_BASE_URL } from '../config/api'
 
 // Semantic keyword expansion - maps common resident terms to program-related concepts
+// Used as fallback when API semantic search is unavailable
 const KEYWORD_EXPANSIONS: { [key: string]: string[] } = {
   // Recreation & Activities
   "swimming": ["aquatics", "pool", "swim", "water safety", "recreation", "lessons"],
@@ -158,6 +160,7 @@ interface HierarchicalTreemapProps {
   onViewLevelChange?: (viewLevel: 'departments' | 'programs', department?: string | null) => void
   width?: number
   height?: number
+  datasetId?: string | null  // Required for semantic search
 }
 
 // ColorBrewer sequential schemes for better accessibility
@@ -196,7 +199,8 @@ export function HierarchicalTreemap({
   onProgramClick, 
   onViewLevelChange,
   width = 800, 
-  height = 500 
+  height = 500,
+  datasetId
 }: HierarchicalTreemapProps) {
   const [viewLevel, setViewLevel] = useState<'departments' | 'programs'>('departments')
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null)
@@ -205,6 +209,8 @@ export function HierarchicalTreemap({
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [searchQuery, setSearchQuery] = useState('')
   const [highlightedIds, setHighlightedIds] = useState<Set<number>>(new Set())
+  const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false)
@@ -320,40 +326,75 @@ useEffect(() => {
     setDepartments(Array.from(deptMap.values()).sort((a, b) => b.total_cost - a.total_cost))
   }, [filteredData, selectedPriority, priorityGroup])
 
+  // Debounced semantic search
   useEffect(() => {
     if (searchQuery.trim() === '') {
       setHighlightedIds(new Set())
       setExpandedTerms([])
+      setSearchType(null)
+      setIsSearching(false)
       return
     }
 
-    // Get expanded search terms using semantic keyword expansion
-    const searchTerms = expandSearchTerms(searchQuery)
-    setExpandedTerms(searchTerms.slice(1, 6)) // Show up to 5 expanded terms (skip original query)
-    
-    const matches = new Set<number>()
-    
-    filteredData.forEach(program => {
-      // Create searchable text from program fields
-      const searchableText = [
-        program.name,
-        program.service_type,
-        program.description,
-        program.department,
-        program.user_group
-      ].filter(Boolean).join(' ').toLowerCase()
+    // Debounce search requests
+    const debounceTimer = setTimeout(async () => {
+      setIsSearching(true)
       
-      // Check if any expanded term matches
-      for (const term of searchTerms) {
-        if (searchableText.includes(term)) {
-          matches.add(program.id)
-          break // Found a match, no need to check more terms
+      // Try semantic search if datasetId is available
+      if (datasetId) {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=30`
+          )
+          
+          if (response.ok) {
+            const data = await response.json()
+            
+            if (data.searchType === 'semantic' && data.programs.length > 0) {
+              // Use semantic search results
+              const matchIds = new Set<number>(data.programs.map((p: any) => p.id))
+              setHighlightedIds(matchIds)
+              setSearchType('semantic')
+              setExpandedTerms([]) // Semantic search doesn't need to show expanded terms
+              setIsSearching(false)
+              return
+            }
+          }
+        } catch (error) {
+          console.log('Semantic search unavailable, falling back to keyword search')
         }
       }
-    })
+      
+      // Fallback to local keyword expansion search
+      const searchTerms = expandSearchTerms(searchQuery)
+      setExpandedTerms(searchTerms.slice(1, 6))
+      setSearchType('keyword')
+      
+      const matches = new Set<number>()
+      
+      filteredData.forEach(program => {
+        const searchableText = [
+          program.name,
+          program.service_type,
+          program.description,
+          program.department,
+          program.user_group
+        ].filter(Boolean).join(' ').toLowerCase()
+        
+        for (const term of searchTerms) {
+          if (searchableText.includes(term)) {
+            matches.add(program.id)
+            break
+          }
+        }
+      })
+      
+      setHighlightedIds(matches)
+      setIsSearching(false)
+    }, 300) // 300ms debounce
     
-    setHighlightedIds(matches)
-  }, [searchQuery, filteredData])
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery, filteredData, datasetId])
 
   const getPriorityScore = (program: Program, priority?: string | null, group?: string): number => {
     if (!priority || !program.priority_scores) return 0.5
@@ -542,6 +583,8 @@ useEffect(() => {
     setSearchQuery('')
     setHighlightedIds(new Set())
     setExpandedTerms([])
+    setSearchType(null)
+    setIsSearching(false)
   }
 
   const clearFilters = () => {
@@ -686,22 +729,39 @@ useEffect(() => {
             </AnimatePresence>
           </div>
           <AnimatePresence>
-            {highlightedIds.size > 0 && (
+            {isSearching && searchQuery && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
-                className="absolute top-full mt-1 text-xs text-gray-600"
+                className="absolute top-full mt-1 text-xs text-gray-500 flex items-center gap-1"
+              >
+                <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                <span>Searching...</span>
+              </motion.div>
+            )}
+            {!isSearching && highlightedIds.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="absolute top-full mt-1 text-xs text-gray-600 flex items-center gap-1"
               >
                 <span>Found {highlightedIds.size} program{highlightedIds.size !== 1 ? 's' : ''}</span>
-                {expandedTerms.length > 0 && (
+                {searchType === 'semantic' && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full text-[10px] font-medium">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    AI
+                  </span>
+                )}
+                {searchType === 'keyword' && expandedTerms.length > 0 && (
                   <span className="ml-1 text-blue-500">
-                    (also searching: {expandedTerms.slice(0, 3).join(', ')}{expandedTerms.length > 3 ? '...' : ''})
+                    (also: {expandedTerms.slice(0, 3).join(', ')}{expandedTerms.length > 3 ? '...' : ''})
                   </span>
                 )}
               </motion.div>
             )}
-            {searchQuery && highlightedIds.size === 0 && (
+            {!isSearching && searchQuery && highlightedIds.size === 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}

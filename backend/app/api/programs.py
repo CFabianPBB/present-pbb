@@ -1086,6 +1086,202 @@ async def semantic_program_search(
     }
 
 
+@router.get("/semantic-search")
+async def semantic_search_programs(
+    dataset_id: str = Query(...),
+    q: str = Query(..., min_length=2, description="Natural language search query"),
+    limit: int = Query(20, ge=1, le=50),
+    threshold: float = Query(0.3, ge=0.0, le=1.0, description="Minimum similarity threshold"),
+    db: Session = Depends(get_db)
+):
+    """
+    Semantic search for programs using AI embeddings.
+    
+    This endpoint understands natural language queries like:
+    - "swimming lessons" → finds "Aquatics Safety & Instruction"
+    - "where does money go for fixing roads" → finds "Street Maintenance"
+    - "help for people without homes" → finds "Housing Navigation", "Outreach"
+    
+    Falls back to keyword search if semantic search is unavailable.
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    # Import embedding service
+    try:
+        from app.services.embedding_service import (
+            semantic_search, 
+            is_semantic_search_available,
+            get_embedding_stats
+        )
+        
+        if is_semantic_search_available():
+            # Use semantic search
+            results = semantic_search(
+                db=db,
+                dataset_id=dataset_uuid,
+                query=q,
+                limit=limit,
+                similarity_threshold=threshold
+            )
+            
+            stats = get_embedding_stats(db, dataset_uuid)
+            
+            return {
+                "programs": results,
+                "query": q,
+                "totalFound": len(results),
+                "searchType": "semantic",
+                "embeddingStats": stats
+            }
+        else:
+            # Fall back to keyword search
+            return await _fallback_keyword_search(db, dataset_uuid, q, limit)
+            
+    except ImportError:
+        # Embedding service not available, use keyword search
+        return await _fallback_keyword_search(db, dataset_uuid, q, limit)
+    except Exception as e:
+        # Log error and fall back to keyword search
+        import traceback
+        print(f"Semantic search error: {e}")
+        traceback.print_exc()
+        return await _fallback_keyword_search(db, dataset_uuid, q, limit)
+
+
+async def _fallback_keyword_search(db: Session, dataset_uuid: uuid.UUID, q: str, limit: int):
+    """Fallback keyword search when semantic search is unavailable."""
+    
+    search_term = q.lower()
+    
+    programs = db.query(
+        Program.id,
+        Program.name,
+        Program.description,
+        Program.service_type,
+        Program.user_group,
+        Program.quartile,
+        ProgramCost.total_cost,
+        ProgramCost.personnel,
+        ProgramCost.nonpersonnel
+    ).outerjoin(
+        ProgramCost, Program.id == ProgramCost.program_id
+    ).filter(
+        Program.dataset_id == dataset_uuid,
+        or_(
+            Program.name.ilike(f"%{search_term}%"),
+            Program.description.ilike(f"%{search_term}%"),
+            Program.service_type.ilike(f"%{search_term}%"),
+            Program.user_group.ilike(f"%{search_term}%")
+        )
+    ).order_by(
+        ProgramCost.total_cost.desc().nullslast()
+    ).limit(limit).all()
+    
+    results = [
+        {
+            "id": prog.id,
+            "name": prog.name,
+            "description": prog.description[:200] + "..." if prog.description and len(prog.description) > 200 else prog.description,
+            "serviceType": prog.service_type,
+            "userGroup": prog.user_group,
+            "quartile": prog.quartile,
+            "totalCost": float(prog.total_cost) if prog.total_cost else 0,
+            "personnel": float(prog.personnel) if prog.personnel else 0,
+            "nonpersonnel": float(prog.nonpersonnel) if prog.nonpersonnel else 0,
+            "similarity": None,
+            "relevance": 50  # Default relevance for keyword matches
+        }
+        for prog in programs
+    ]
+    
+    return {
+        "programs": results,
+        "query": q,
+        "totalFound": len(results),
+        "searchType": "keyword",
+        "embeddingStats": {"semantic_search_available": False}
+    }
+
+
+@router.post("/generate-embeddings")
+async def generate_dataset_embeddings(
+    dataset_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate embeddings for all programs in a dataset.
+    Call this after uploading data to enable semantic search.
+    
+    This is an admin endpoint - typically called automatically after data ingestion.
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    # Verify dataset exists
+    dataset = db.query(Dataset).filter(Dataset.id == dataset_uuid).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    try:
+        from app.services.embedding_service import embed_programs_for_dataset, is_semantic_search_available
+        
+        if not is_semantic_search_available():
+            return {
+                "success": False,
+                "error": "Semantic search not configured. Add OPENAI_API_KEY to environment."
+            }
+        
+        result = embed_programs_for_dataset(db, dataset_uuid)
+        return result
+        
+    except ImportError:
+        return {
+            "success": False,
+            "error": "Embedding service not available. Install openai and pgvector packages."
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.get("/embedding-status")
+async def check_embedding_status(
+    dataset_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Check embedding status for a dataset.
+    Returns whether semantic search is available and how many programs are embedded.
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    try:
+        from app.services.embedding_service import get_embedding_stats, is_semantic_search_available
+        
+        stats = get_embedding_stats(db, dataset_uuid)
+        stats["openai_configured"] = is_semantic_search_available()
+        return stats
+        
+    except ImportError:
+        return {
+            "semantic_search_available": False,
+            "openai_configured": False,
+            "error": "Embedding service not installed"
+        }
+
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================

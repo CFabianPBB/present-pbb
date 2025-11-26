@@ -307,6 +307,7 @@ export function Results({ lockedDatasetId, isLocked }: ResultsProps = {}) {
                 priorityGroup={activeTab}
                 onProgramClick={handleProgramClick}
                 onViewLevelChange={handleViewLevelChange}
+                datasetId={datasetId}
               />
               
               {/* Instructions */}
