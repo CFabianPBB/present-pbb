@@ -693,25 +693,130 @@ async def search_sankey_items(
     db: Session = Depends(get_db)
 ):
     """
-    Search endpoint for typeahead in the Sankey UI.
-    Returns matching categories and/or programs.
+    Enhanced semantic search endpoint for typeahead in the Sankey UI.
+    Returns matching categories and/or programs with keyword expansion.
     """
     try:
         dataset_uuid = uuid.UUID(dataset_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid dataset_id format")
     
+    # Semantic keyword expansion - maps common resident terms to program-related concepts
+    keyword_expansions = {
+        # Recreation & Activities
+        "swimming": ["aquatics", "pool", "swim", "water safety", "recreation"],
+        "swim": ["aquatics", "pool", "swimming", "water safety", "recreation"],
+        "pool": ["aquatics", "swimming", "recreation"],
+        "sports": ["recreation", "athletics", "youth", "adult", "league", "field"],
+        "gym": ["recreation", "fitness", "center"],
+        "park": ["parks", "recreation", "trails", "maintenance", "green space"],
+        "playground": ["parks", "recreation", "youth"],
+        "camping": ["parks", "recreation", "outdoors"],
+        "hiking": ["trails", "parks", "recreation", "path"],
+        
+        # Public Safety
+        "police": ["law enforcement", "public safety", "crime", "patrol", "officer"],
+        "cops": ["law enforcement", "police", "public safety", "patrol"],
+        "crime": ["law enforcement", "police", "public safety", "prevention"],
+        "fire": ["fire department", "emergency", "rescue", "suppression", "prevention"],
+        "ambulance": ["emergency", "medical", "ems", "paramedic", "response"],
+        "911": ["emergency", "dispatch", "communications", "response"],
+        "safety": ["public safety", "police", "fire", "emergency"],
+        
+        # Housing & Homelessness
+        "homeless": ["homelessness", "housing", "shelter", "outreach", "navigation", "case management"],
+        "homelessness": ["homeless", "housing", "shelter", "outreach", "navigation", "services"],
+        "shelter": ["homeless", "housing", "emergency", "services"],
+        "affordable housing": ["housing", "development", "voucher", "assistance"],
+        "rent": ["housing", "assistance", "voucher", "affordable"],
+        
+        # Streets & Transportation
+        "snow": ["snow removal", "winter", "street maintenance", "plow", "ice"],
+        "plow": ["snow", "winter", "street", "maintenance"],
+        "pothole": ["street", "maintenance", "road", "repair", "pavement"],
+        "road": ["street", "maintenance", "transportation", "pavement", "traffic"],
+        "street": ["road", "maintenance", "transportation", "pavement"],
+        "traffic": ["transportation", "signal", "safety", "control", "engineering"],
+        "sidewalk": ["pedestrian", "maintenance", "path", "walkway"],
+        "bus": ["transit", "transportation", "public"],
+        "parking": ["enforcement", "meters", "lots", "garage"],
+        "bike": ["bicycle", "path", "trail", "lane", "cycling"],
+        
+        # Utilities & Environment
+        "water": ["utility", "distribution", "treatment", "sewer", "stormwater"],
+        "sewer": ["wastewater", "utility", "treatment", "sanitary"],
+        "trash": ["solid waste", "garbage", "recycling", "collection", "refuse"],
+        "garbage": ["solid waste", "trash", "collection", "refuse", "waste"],
+        "recycling": ["solid waste", "trash", "sustainability", "environment"],
+        "electric": ["utility", "power", "energy", "electricity"],
+        "stormwater": ["drainage", "flood", "water", "utility"],
+        
+        # Community Services
+        "library": ["circulation", "programming", "literacy", "books", "media"],
+        "books": ["library", "circulation", "literacy"],
+        "senior": ["aging", "elderly", "services", "center", "meals"],
+        "elderly": ["senior", "aging", "services"],
+        "youth": ["children", "kids", "teen", "recreation", "programs"],
+        "kids": ["youth", "children", "recreation", "programs"],
+        "children": ["youth", "kids", "recreation", "childcare"],
+        "daycare": ["childcare", "children", "early childhood"],
+        
+        # Permits & Planning
+        "permit": ["permitting", "building", "inspection", "code", "license"],
+        "building": ["permit", "inspection", "code", "construction", "development"],
+        "zoning": ["planning", "land use", "development", "code"],
+        "inspection": ["permit", "building", "code", "compliance"],
+        
+        # Health
+        "health": ["public health", "wellness", "medical", "clinic", "disease"],
+        "clinic": ["health", "medical", "wellness"],
+        "mental health": ["behavioral", "counseling", "crisis", "services"],
+        "vaccine": ["immunization", "health", "public health"],
+        
+        # Administration & Finance
+        "taxes": ["tax", "finance", "revenue", "assessment", "collection"],
+        "tax": ["taxes", "finance", "revenue", "assessment"],
+        "bill": ["utility", "payment", "customer service", "billing"],
+        "budget": ["finance", "fiscal", "planning", "administration"],
+        "jobs": ["employment", "human resources", "workforce", "career"],
+        "hr": ["human resources", "personnel", "employment"],
+        
+        # Events & Culture
+        "event": ["events", "special", "festival", "community", "celebration"],
+        "festival": ["events", "special", "community", "celebration"],
+        "concert": ["events", "arts", "culture", "entertainment"],
+        "art": ["arts", "culture", "museum", "gallery"],
+        "museum": ["arts", "culture", "history"],
+    }
+    
+    # Expand search terms
+    search_terms = [q.lower()]
+    q_lower = q.lower()
+    
+    # Add expanded keywords
+    for key, expansions in keyword_expansions.items():
+        if key in q_lower or q_lower in key:
+            search_terms.extend(expansions)
+    
+    # Remove duplicates while preserving order
+    search_terms = list(dict.fromkeys(search_terms))
+    
     results = {"categories": [], "programs": []}
     
     if search_type in ("categories", "both"):
-        # Search unique categories
+        # Search unique categories with expanded terms
+        category_conditions = []
+        for term in search_terms:
+            category_conditions.append(LineItem.item_cat1.ilike(f"%{term}%"))
+            category_conditions.append(LineItem.item_cat2.ilike(f"%{term}%"))
+        
         categories = db.query(
             LineItem.item_cat1,
             func.sum(LineItem.total_item_cost).label('total_cost'),
             func.count(LineItem.id).label('item_count')
         ).filter(
             LineItem.dataset_id == dataset_uuid,
-            LineItem.item_cat1.ilike(f"%{q}%"),
+            or_(*category_conditions),
             LineItem.item_cat1.isnot(None)
         ).group_by(
             LineItem.item_cat1
@@ -729,32 +834,256 @@ async def search_sankey_items(
         ]
     
     if search_type in ("programs", "both"):
-        # Search programs
+        # Search programs across multiple fields with expanded terms
+        program_conditions = []
+        for term in search_terms:
+            program_conditions.append(Program.name.ilike(f"%{term}%"))
+            program_conditions.append(Program.description.ilike(f"%{term}%"))
+            program_conditions.append(Program.service_type.ilike(f"%{term}%"))
+            program_conditions.append(Program.user_group.ilike(f"%{term}%"))
+        
         programs = db.query(
             Program.id,
             Program.name,
+            Program.description,
             Program.user_group,
             ProgramCost.total_cost
         ).join(
             ProgramCost, Program.id == ProgramCost.program_id
         ).filter(
             Program.dataset_id == dataset_uuid,
-            Program.name.ilike(f"%{q}%")
+            or_(*program_conditions)
         ).order_by(
             ProgramCost.total_cost.desc()
         ).limit(limit).all()
         
-        results["programs"] = [
-            {
-                "id": prog.id,
-                "name": prog.name,
-                "userGroup": prog.user_group,
-                "totalCost": float(prog.total_cost) if prog.total_cost else 0
-            }
-            for prog in programs
-        ]
+        # Deduplicate programs (in case same program matches multiple terms)
+        seen_ids = set()
+        unique_programs = []
+        for prog in programs:
+            if prog.id not in seen_ids:
+                seen_ids.add(prog.id)
+                unique_programs.append({
+                    "id": prog.id,
+                    "name": prog.name,
+                    "description": prog.description[:100] + "..." if prog.description and len(prog.description) > 100 else prog.description,
+                    "userGroup": prog.user_group,
+                    "totalCost": float(prog.total_cost) if prog.total_cost else 0
+                })
+        
+        results["programs"] = unique_programs
+    
+    # Include what terms were searched (for debugging/transparency)
+    results["searchTerms"] = search_terms[:10]  # Limit to first 10 for response size
     
     return results
+
+
+@router.get("/program-search")
+async def semantic_program_search(
+    dataset_id: str = Query(...),
+    q: str = Query(..., min_length=2),
+    limit: int = Query(30),
+    db: Session = Depends(get_db)
+):
+    """
+    Semantic program search endpoint - "thinks like a resident".
+    Searches program name, description, service_type, and user_group
+    with keyword expansion for common resident terms.
+    
+    Examples:
+    - "swimming lessons" → finds "Aquatics Safety & Instruction"
+    - "homeless" → finds Outreach, Housing Navigation, Case Management
+    - "snow removal" → finds Winter Street Maintenance, Sidewalk Maintenance
+    """
+    try:
+        dataset_uuid = uuid.UUID(dataset_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid dataset_id format")
+    
+    # Semantic keyword expansion - maps common resident terms to program-related concepts
+    keyword_expansions = {
+        # Recreation & Activities
+        "swimming": ["aquatics", "pool", "swim", "water safety", "recreation", "lessons"],
+        "swim": ["aquatics", "pool", "swimming", "water safety", "recreation"],
+        "pool": ["aquatics", "swimming", "recreation"],
+        "sports": ["recreation", "athletics", "youth", "adult", "league", "field"],
+        "gym": ["recreation", "fitness", "center"],
+        "park": ["parks", "recreation", "trails", "maintenance", "green space"],
+        "playground": ["parks", "recreation", "youth"],
+        "camping": ["parks", "recreation", "outdoors"],
+        "hiking": ["trails", "parks", "recreation", "path"],
+        "golf": ["course", "pro shop", "recreation"],
+        
+        # Public Safety
+        "police": ["law enforcement", "public safety", "crime", "patrol", "officer", "response"],
+        "cops": ["law enforcement", "police", "public safety", "patrol"],
+        "crime": ["law enforcement", "police", "public safety", "prevention", "investigation"],
+        "fire": ["fire department", "emergency", "rescue", "suppression", "prevention", "firefighter"],
+        "ambulance": ["emergency", "medical", "ems", "paramedic", "response"],
+        "911": ["emergency", "dispatch", "communications", "response"],
+        "safety": ["public safety", "police", "fire", "emergency", "protection"],
+        
+        # Housing & Homelessness
+        "homeless": ["homelessness", "housing", "shelter", "outreach", "navigation", "case management", "services"],
+        "homelessness": ["homeless", "housing", "shelter", "outreach", "navigation", "services"],
+        "shelter": ["homeless", "housing", "emergency", "services"],
+        "affordable housing": ["housing", "development", "voucher", "assistance"],
+        "rent": ["housing", "assistance", "voucher", "affordable"],
+        "housing": ["homeless", "voucher", "development", "assistance", "affordable"],
+        
+        # Streets & Transportation
+        "snow": ["snow removal", "winter", "street maintenance", "plow", "ice", "clearing"],
+        "plow": ["snow", "winter", "street", "maintenance"],
+        "pothole": ["street", "maintenance", "road", "repair", "pavement"],
+        "road": ["street", "maintenance", "transportation", "pavement", "traffic"],
+        "street": ["road", "maintenance", "transportation", "pavement", "lighting"],
+        "traffic": ["transportation", "signal", "safety", "control", "engineering"],
+        "sidewalk": ["pedestrian", "maintenance", "path", "walkway"],
+        "bus": ["transit", "transportation", "public"],
+        "parking": ["enforcement", "meters", "lots", "garage"],
+        "bike": ["bicycle", "path", "trail", "lane", "cycling"],
+        
+        # Utilities & Environment
+        "water": ["utility", "distribution", "treatment", "sewer", "stormwater"],
+        "sewer": ["wastewater", "utility", "treatment", "sanitary"],
+        "trash": ["solid waste", "garbage", "recycling", "collection", "refuse"],
+        "garbage": ["solid waste", "trash", "collection", "refuse", "waste"],
+        "recycling": ["solid waste", "trash", "sustainability", "environment"],
+        "electric": ["utility", "power", "energy", "electricity"],
+        "stormwater": ["drainage", "flood", "water", "utility"],
+        
+        # Community Services
+        "library": ["circulation", "programming", "literacy", "books", "media", "meeting"],
+        "books": ["library", "circulation", "literacy"],
+        "senior": ["aging", "elderly", "services", "center", "meals"],
+        "elderly": ["senior", "aging", "services"],
+        "youth": ["children", "kids", "teen", "recreation", "programs"],
+        "kids": ["youth", "children", "recreation", "programs"],
+        "children": ["youth", "kids", "recreation", "childcare"],
+        "daycare": ["childcare", "children", "early childhood"],
+        "community": ["events", "center", "services", "outreach", "engagement"],
+        
+        # Permits & Planning
+        "permit": ["permitting", "building", "inspection", "code", "license"],
+        "building": ["permit", "inspection", "code", "construction", "development"],
+        "zoning": ["planning", "land use", "development", "code"],
+        "inspection": ["permit", "building", "code", "compliance"],
+        
+        # Health
+        "health": ["public health", "wellness", "medical", "clinic", "disease"],
+        "clinic": ["health", "medical", "wellness"],
+        "mental health": ["behavioral", "counseling", "crisis", "services"],
+        "vaccine": ["immunization", "health", "public health"],
+        
+        # Administration & Finance
+        "taxes": ["tax", "finance", "revenue", "assessment", "collection"],
+        "tax": ["taxes", "finance", "revenue", "assessment"],
+        "bill": ["utility", "payment", "customer service", "billing"],
+        "budget": ["finance", "fiscal", "planning", "administration"],
+        "jobs": ["employment", "human resources", "workforce", "career"],
+        "hr": ["human resources", "personnel", "employment"],
+        
+        # Events & Culture
+        "event": ["events", "special", "festival", "community", "celebration"],
+        "festival": ["events", "special", "community", "celebration"],
+        "concert": ["events", "arts", "culture", "entertainment"],
+        "art": ["arts", "culture", "museum", "gallery"],
+        "museum": ["arts", "culture", "history"],
+        
+        # IT & Technology
+        "internet": ["technology", "broadband", "connectivity", "cybersecurity"],
+        "computer": ["technology", "it", "software", "cybersecurity"],
+        "cyber": ["cybersecurity", "it", "technology", "security"],
+    }
+    
+    # Expand search terms
+    search_terms = [q.lower()]
+    q_lower = q.lower()
+    
+    # Add expanded keywords
+    for key, expansions in keyword_expansions.items():
+        if key in q_lower or q_lower in key:
+            search_terms.extend(expansions)
+    
+    # Also check for partial matches in multi-word searches
+    words = q_lower.split()
+    for word in words:
+        if len(word) >= 3:  # Only expand words with 3+ chars
+            for key, expansions in keyword_expansions.items():
+                if word in key or key in word:
+                    search_terms.extend(expansions)
+    
+    # Remove duplicates while preserving order
+    search_terms = list(dict.fromkeys(search_terms))
+    
+    # Build search conditions across multiple fields
+    program_conditions = []
+    for term in search_terms:
+        program_conditions.append(Program.name.ilike(f"%{term}%"))
+        program_conditions.append(Program.description.ilike(f"%{term}%"))
+        program_conditions.append(Program.service_type.ilike(f"%{term}%"))
+        program_conditions.append(Program.user_group.ilike(f"%{term}%"))
+    
+    # Query programs with all related info
+    programs = db.query(
+        Program.id,
+        Program.name,
+        Program.description,
+        Program.service_type,
+        Program.user_group,
+        Program.quartile,
+        ProgramCost.total_cost,
+        ProgramCost.personnel,
+        ProgramCost.nonpersonnel
+    ).outerjoin(
+        ProgramCost, Program.id == ProgramCost.program_id
+    ).filter(
+        Program.dataset_id == dataset_uuid,
+        or_(*program_conditions)
+    ).order_by(
+        ProgramCost.total_cost.desc().nullslast()
+    ).limit(limit * 2).all()  # Get extra to account for deduplication
+    
+    # Deduplicate and format results
+    seen_ids = set()
+    results = []
+    for prog in programs:
+        if prog.id not in seen_ids and len(results) < limit:
+            seen_ids.add(prog.id)
+            
+            # Calculate relevance score (programs matching original query rank higher)
+            relevance = 0
+            prog_text = f"{prog.name} {prog.description or ''} {prog.service_type or ''} {prog.user_group or ''}".lower()
+            if q_lower in prog_text:
+                relevance = 100  # Exact match
+            elif any(word in prog_text for word in words if len(word) >= 3):
+                relevance = 50  # Partial word match
+            else:
+                relevance = 25  # Expanded term match
+            
+            results.append({
+                "id": prog.id,
+                "name": prog.name,
+                "description": prog.description[:150] + "..." if prog.description and len(prog.description) > 150 else prog.description,
+                "serviceType": prog.service_type,
+                "userGroup": prog.user_group,
+                "quartile": prog.quartile,
+                "totalCost": float(prog.total_cost) if prog.total_cost else 0,
+                "personnel": float(prog.personnel) if prog.personnel else 0,
+                "nonpersonnel": float(prog.nonpersonnel) if prog.nonpersonnel else 0,
+                "relevance": relevance
+            })
+    
+    # Sort by relevance first, then by cost
+    results.sort(key=lambda x: (-x["relevance"], -x["totalCost"]))
+    
+    return {
+        "programs": results,
+        "searchTerms": search_terms[:15],
+        "query": q,
+        "totalFound": len(results)
+    }
 
 
 # ============================================================================

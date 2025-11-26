@@ -2,6 +2,130 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
+// Semantic keyword expansion - maps common resident terms to program-related concepts
+const KEYWORD_EXPANSIONS: { [key: string]: string[] } = {
+  // Recreation & Activities
+  "swimming": ["aquatics", "pool", "swim", "water safety", "recreation", "lessons"],
+  "swim": ["aquatics", "pool", "swimming", "water safety", "recreation"],
+  "pool": ["aquatics", "swimming", "recreation"],
+  "sports": ["recreation", "athletics", "youth", "adult", "league", "field"],
+  "gym": ["recreation", "fitness", "center"],
+  "park": ["parks", "recreation", "trails", "maintenance", "green space"],
+  "playground": ["parks", "recreation", "youth"],
+  "camping": ["parks", "recreation", "outdoors"],
+  "hiking": ["trails", "parks", "recreation", "path"],
+  "golf": ["course", "pro shop", "recreation"],
+  
+  // Public Safety
+  "police": ["law enforcement", "public safety", "crime", "patrol", "officer", "response"],
+  "cops": ["law enforcement", "police", "public safety", "patrol"],
+  "crime": ["law enforcement", "police", "public safety", "prevention", "investigation"],
+  "fire": ["fire department", "emergency", "rescue", "suppression", "prevention", "firefighter"],
+  "ambulance": ["emergency", "medical", "ems", "paramedic", "response"],
+  "911": ["emergency", "dispatch", "communications", "response"],
+  "safety": ["public safety", "police", "fire", "emergency", "protection"],
+  
+  // Housing & Homelessness
+  "homeless": ["homelessness", "housing", "shelter", "outreach", "navigation", "case management", "services"],
+  "homelessness": ["homeless", "housing", "shelter", "outreach", "navigation", "services"],
+  "shelter": ["homeless", "housing", "emergency", "services"],
+  "affordable": ["housing", "development", "voucher", "assistance"],
+  "rent": ["housing", "assistance", "voucher", "affordable"],
+  "housing": ["homeless", "voucher", "development", "assistance", "affordable"],
+  
+  // Streets & Transportation
+  "snow": ["snow removal", "winter", "street maintenance", "plow", "ice", "clearing"],
+  "plow": ["snow", "winter", "street", "maintenance"],
+  "pothole": ["street", "maintenance", "road", "repair", "pavement"],
+  "road": ["street", "maintenance", "transportation", "pavement", "traffic"],
+  "street": ["road", "maintenance", "transportation", "pavement", "lighting"],
+  "traffic": ["transportation", "signal", "safety", "control", "engineering"],
+  "sidewalk": ["pedestrian", "maintenance", "path", "walkway"],
+  "bus": ["transit", "transportation", "public"],
+  "parking": ["enforcement", "meters", "lots", "garage"],
+  "bike": ["bicycle", "path", "trail", "lane", "cycling"],
+  
+  // Utilities & Environment
+  "water": ["utility", "distribution", "treatment", "sewer", "stormwater"],
+  "sewer": ["wastewater", "utility", "treatment", "sanitary"],
+  "trash": ["solid waste", "garbage", "recycling", "collection", "refuse"],
+  "garbage": ["solid waste", "trash", "collection", "refuse", "waste"],
+  "recycling": ["solid waste", "trash", "sustainability", "environment"],
+  "electric": ["utility", "power", "energy", "electricity"],
+  "stormwater": ["drainage", "flood", "water", "utility"],
+  
+  // Community Services
+  "library": ["circulation", "programming", "literacy", "books", "media", "meeting"],
+  "books": ["library", "circulation", "literacy"],
+  "senior": ["aging", "elderly", "services", "center", "meals"],
+  "elderly": ["senior", "aging", "services"],
+  "youth": ["children", "kids", "teen", "recreation", "programs"],
+  "kids": ["youth", "children", "recreation", "programs"],
+  "children": ["youth", "kids", "recreation", "childcare"],
+  "daycare": ["childcare", "children", "early childhood"],
+  "community": ["events", "center", "services", "outreach", "engagement"],
+  
+  // Permits & Planning
+  "permit": ["permitting", "building", "inspection", "code", "license"],
+  "building": ["permit", "inspection", "code", "construction", "development"],
+  "zoning": ["planning", "land use", "development", "code"],
+  "inspection": ["permit", "building", "code", "compliance"],
+  
+  // Health
+  "health": ["public health", "wellness", "medical", "clinic", "disease"],
+  "clinic": ["health", "medical", "wellness"],
+  "mental": ["behavioral", "counseling", "crisis", "services"],
+  "vaccine": ["immunization", "health", "public health"],
+  
+  // Administration & Finance
+  "taxes": ["tax", "finance", "revenue", "assessment", "collection"],
+  "tax": ["taxes", "finance", "revenue", "assessment"],
+  "bill": ["utility", "payment", "customer service", "billing"],
+  "budget": ["finance", "fiscal", "planning", "administration"],
+  "jobs": ["employment", "human resources", "workforce", "career"],
+  "hr": ["human resources", "personnel", "employment"],
+  
+  // Events & Culture
+  "event": ["events", "special", "festival", "community", "celebration"],
+  "festival": ["events", "special", "community", "celebration"],
+  "concert": ["events", "arts", "culture", "entertainment"],
+  "art": ["arts", "culture", "museum", "gallery"],
+  "museum": ["arts", "culture", "history"],
+  
+  // IT & Technology
+  "internet": ["technology", "broadband", "connectivity", "cybersecurity"],
+  "computer": ["technology", "it", "software", "cybersecurity"],
+  "cyber": ["cybersecurity", "it", "technology", "security"],
+}
+
+// Helper function to expand search query with related terms
+function expandSearchTerms(query: string): string[] {
+  const terms = [query.toLowerCase()]
+  const queryLower = query.toLowerCase()
+  const words = queryLower.split(/\s+/)
+  
+  // Add expanded keywords for each word
+  for (const word of words) {
+    if (word.length < 2) continue
+    
+    for (const [key, expansions] of Object.entries(KEYWORD_EXPANSIONS)) {
+      if (key.includes(word) || word.includes(key)) {
+        terms.push(...expansions)
+      }
+    }
+  }
+  
+  // Also check the full query
+  for (const [key, expansions] of Object.entries(KEYWORD_EXPANSIONS)) {
+    if (key.includes(queryLower) || queryLower.includes(key)) {
+      terms.push(...expansions)
+    }
+  }
+  
+  // Return unique terms
+  return [...new Set(terms)]
+}
+
 
 interface Program {
   id: number
@@ -89,6 +213,7 @@ export function HierarchicalTreemap({
   const [selectedDepartments, setSelectedDepartments] = useState<Set<string>>(new Set())
   const [selectedQuartiles, setSelectedQuartiles] = useState<Set<string>>(new Set())
   const [colorScheme, setColorScheme] = useState<keyof typeof COLOR_SCHEMES>('blues')
+  const [expandedTerms, setExpandedTerms] = useState<string[]>([])  // Track expanded search terms
 
 const [isTouchDevice, setIsTouchDevice] = useState(false)
 
@@ -198,20 +323,32 @@ useEffect(() => {
   useEffect(() => {
     if (searchQuery.trim() === '') {
       setHighlightedIds(new Set())
+      setExpandedTerms([])
       return
     }
 
-    const query = searchQuery.toLowerCase()
+    // Get expanded search terms using semantic keyword expansion
+    const searchTerms = expandSearchTerms(searchQuery)
+    setExpandedTerms(searchTerms.slice(1, 6)) // Show up to 5 expanded terms (skip original query)
+    
     const matches = new Set<number>()
     
     filteredData.forEach(program => {
-      // Search in program name, service type, and description for comprehensive matching
-      if (
-        program.name.toLowerCase().includes(query) ||
-        program.service_type?.toLowerCase().includes(query) ||
-        program.description?.toLowerCase().includes(query)
-      ) {
-        matches.add(program.id)
+      // Create searchable text from program fields
+      const searchableText = [
+        program.name,
+        program.service_type,
+        program.description,
+        program.department,
+        program.user_group
+      ].filter(Boolean).join(' ').toLowerCase()
+      
+      // Check if any expanded term matches
+      for (const term of searchTerms) {
+        if (searchableText.includes(term)) {
+          matches.add(program.id)
+          break // Found a match, no need to check more terms
+        }
       }
     })
     
@@ -404,6 +541,7 @@ useEffect(() => {
   const clearSearch = () => {
     setSearchQuery('')
     setHighlightedIds(new Set())
+    setExpandedTerms([])
   }
 
   const clearFilters = () => {
@@ -530,7 +668,7 @@ useEffect(() => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search programs..."
+              placeholder="Search programs... (try 'swimming' or 'homeless')"
               className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
             <AnimatePresence>
@@ -555,7 +693,27 @@ useEffect(() => {
                 exit={{ opacity: 0, y: -5 }}
                 className="absolute top-full mt-1 text-xs text-gray-600"
               >
-                Found {highlightedIds.size} program{highlightedIds.size !== 1 ? 's' : ''}
+                <span>Found {highlightedIds.size} program{highlightedIds.size !== 1 ? 's' : ''}</span>
+                {expandedTerms.length > 0 && (
+                  <span className="ml-1 text-blue-500">
+                    (also searching: {expandedTerms.slice(0, 3).join(', ')}{expandedTerms.length > 3 ? '...' : ''})
+                  </span>
+                )}
+              </motion.div>
+            )}
+            {searchQuery && highlightedIds.size === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="absolute top-full mt-1 text-xs text-gray-500"
+              >
+                No programs found
+                {expandedTerms.length > 0 && (
+                  <span className="ml-1">
+                    (searched: {expandedTerms.slice(0, 3).join(', ')})
+                  </span>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
