@@ -5,6 +5,14 @@ import { ProgramDetailModal } from '../components/ProgramDetailModal'
 import WhereYourDollarGoes from '../components/WhereYourDollarGoes'
 import { API_BASE_URL } from '../config/api';
 
+// Helper function to format currency with commas
+const formatCurrency = (value: number, decimals: number = 2): string => {
+  return value.toLocaleString('en-US', { 
+    minimumFractionDigits: decimals, 
+    maximumFractionDigits: decimals 
+  })
+}
+
 interface Program {
   id: number
   name: string
@@ -161,7 +169,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
                   <span className="text-xs sm:text-sm text-blue-100">Per Resident</span>
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold">
-                  ${data.per_capita_total.toFixed(2)}
+                  ${formatCurrency(data.per_capita_total)}
                 </div>
               </div>
 
@@ -205,7 +213,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
             <div className="sm:ml-auto">
               <div className="text-xs sm:text-sm text-gray-600">Your household's share</div>
               <div className="text-2xl sm:text-3xl font-bold text-blue-600">
-                ${householdTotal.toFixed(2)}
+                ${formatCurrency(householdTotal)}
               </div>
             </div>
           </div>
@@ -233,7 +241,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs sm:text-sm font-medium text-gray-700">Your Direct Investment</span>
                 <span className="text-xs sm:text-sm font-bold text-gray-900">
-                  ${data.per_capita_total.toFixed(2)} (1.0x)
+                  ${formatCurrency(data.per_capita_total)} (1.0x)
                 </span>
               </div>
               <div className="relative w-full bg-gray-100 rounded-lg h-6 sm:h-8">
@@ -251,7 +259,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs sm:text-sm font-medium text-gray-700">Total Value Delivered</span>
                 <span className="text-xs sm:text-sm font-bold text-orange-600">
-                  ${data.total_priority_value.toFixed(2)} ({data.leverage_ratio.toFixed(1)}x) 🚀
+                  ${formatCurrency(data.total_priority_value)} ({data.leverage_ratio.toFixed(1)}x) 🚀
                 </span>
               </div>
               <div className="relative w-full bg-gray-100 rounded-lg h-6 sm:h-8">
@@ -267,10 +275,10 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
 
           <div className="mt-4 sm:mt-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-orange-500 rounded-lg p-3 sm:p-4">
             <p className="text-xs sm:text-sm text-gray-700">
-              <strong>Leverage Effect Active!</strong> Multi-purpose programs amplify your ${data.per_capita_total.toFixed(2)} investment 
-              to deliver ${data.total_priority_value.toFixed(2)} in community value—creating an additional{' '}
+              <strong>Leverage Effect Active!</strong> Multi-purpose programs amplify your ${formatCurrency(data.per_capita_total)} investment 
+              to deliver ${formatCurrency(data.total_priority_value)} in community value—creating an additional{' '}
               <strong className="text-orange-600">
-                ${(data.total_priority_value - data.per_capita_total).toFixed(2)}
+                ${formatCurrency(data.total_priority_value - data.per_capita_total)}
               </strong> in results. That's a {((data.leverage_ratio - 1) * 100).toFixed(0)}% return on your investment!
             </p>
           </div>
@@ -300,12 +308,12 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
             </div>
             <div className="text-base sm:text-lg">
               <span className="text-gray-600">Per Resident Investment:</span>
-              <span className="font-bold ml-2">${data.per_capita_total.toFixed(2)}</span>
+              <span className="font-bold ml-2">${formatCurrency(data.per_capita_total)}</span>
             </div>
             {householdSize > 1 && (
               <div className="text-base sm:text-lg">
                 <span className="text-gray-600">Your Household ({householdSize} people):</span>
-                <span className="font-bold ml-2">${householdTotal.toFixed(2)}</span>
+                <span className="font-bold ml-2">${formatCurrency(householdTotal)}</span>
               </div>
             )}
           </div>
@@ -315,7 +323,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
             <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <span>COMMUNITY PRIORITIES</span>
               <span className="text-base sm:text-xl text-blue-600">
-                ${data.community_priorities.total_per_capita.toFixed(2)} per resident
+                ${formatCurrency(data.community_priorities.total_per_capita)} per resident
               </span>
             </h3>
             <div className="space-y-2 sm:space-y-3">
@@ -335,11 +343,11 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
                     </div>
                     <div className="text-left sm:text-right">
                       <div className="font-bold text-sm sm:text-base text-blue-600">
-                        ${priority.per_capita_cost.toFixed(2)}
+                        ${formatCurrency(priority.per_capita_cost)}
                       </div>
                       {householdSize > 1 && (
                         <div className="text-xs sm:text-sm text-gray-600">
-                          ${(priority.per_capita_cost * householdSize).toFixed(2)} household
+                          ${formatCurrency(priority.per_capita_cost * householdSize)} household
                         </div>
                       )}
                     </div>
@@ -357,7 +365,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
                       {priority.programs.slice(0, 5).map((program) => (
                         <div key={program.id} className="flex justify-between text-xs sm:text-sm pl-3 sm:pl-4 py-1 border-l-2 border-gray-300 gap-2">
                           <span className="text-gray-700 flex-1 min-w-0 truncate sm:truncate-0">{program.name}</span>
-                          <span className="text-gray-600 whitespace-nowrap">${program.per_capita_cost.toFixed(2)}</span>
+                          <span className="text-gray-600 whitespace-nowrap">${formatCurrency(program.per_capita_cost)}</span>
                         </div>
                       ))}
                       {priority.programs.length > 5 && (
@@ -383,7 +391,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
             <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <span>GOVERNANCE PRIORITIES</span>
               <span className="text-base sm:text-xl text-blue-600">
-                ${data.governance_priorities.total_per_capita.toFixed(2)} per resident
+                ${formatCurrency(data.governance_priorities.total_per_capita)} per resident
               </span>
             </h3>
             <div className="space-y-2 sm:space-y-3">
@@ -403,11 +411,11 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
                     </div>
                     <div className="text-left sm:text-right">
                       <div className="font-bold text-sm sm:text-base text-gray-600">
-                        ${priority.per_capita_cost.toFixed(2)}
+                        ${formatCurrency(priority.per_capita_cost)}
                       </div>
                       {householdSize > 1 && (
                         <div className="text-xs sm:text-sm text-gray-600">
-                          ${(priority.per_capita_cost * householdSize).toFixed(2)} household
+                          ${formatCurrency(priority.per_capita_cost * householdSize)} household
                         </div>
                       )}
                     </div>
@@ -425,7 +433,7 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
                       {priority.programs.slice(0, 5).map((program) => (
                         <div key={program.id} className="flex justify-between text-xs sm:text-sm pl-3 sm:pl-4 py-1 border-l-2 border-gray-300 gap-2">
                           <span className="text-gray-700 flex-1 min-w-0 truncate sm:truncate-0">{program.name}</span>
-                          <span className="text-gray-600 whitespace-nowrap">${program.per_capita_cost.toFixed(2)}</span>
+                          <span className="text-gray-600 whitespace-nowrap">${formatCurrency(program.per_capita_cost)}</span>
                         </div>
                       ))}
                       {priority.programs.length > 5 && (
@@ -450,12 +458,12 @@ export default function TaxpayerDividend({ lockedDatasetId, isLocked }: Taxpayer
           <div className="border-t-2 border-gray-800 pt-4 mt-6 sm:mt-8">
             <div className="flex items-center justify-between text-lg sm:text-xl font-bold">
               <span>TOTAL INVESTMENT</span>
-              <span>${data.per_capita_total.toFixed(2)}</span>
+              <span>${formatCurrency(data.per_capita_total)}</span>
             </div>
             {householdSize > 1 && (
               <div className="flex items-center justify-between text-base sm:text-lg text-gray-600 mt-2">
                 <span>Your Household Total</span>
-                <span>${householdTotal.toFixed(2)}</span>
+                <span>${formatCurrency(householdTotal)}</span>
               </div>
             )}
           </div>

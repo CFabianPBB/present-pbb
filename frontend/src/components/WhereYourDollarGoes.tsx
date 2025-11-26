@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 
+// Helper function to format currency with commas
+const formatCurrency = (value: number, decimals: number = 2): string => {
+  return value.toLocaleString('en-US', { 
+    minimumFractionDigits: decimals, 
+    maximumFractionDigits: decimals 
+  })
+}
+
 interface Priority {
   id: number
   name: string
@@ -168,7 +176,7 @@ export default function WhereYourDollarGoes({
                         <div className="text-2xl mb-2">{segment.emoji}</div>
                         <div className="font-bold text-lg">{segment.name}</div>
                         <div className="text-sm mt-2 text-gray-300">
-                          ${segment.amount.toFixed(2)} per resident
+                          ${formatCurrency(segment.amount)} per resident
                         </div>
                         <div className="text-xs text-gray-400 mt-1">
                           {segment.percentage.toFixed(1)}% of priority spending
@@ -256,7 +264,7 @@ export default function WhereYourDollarGoes({
                   {segment.cents}¢
                 </div>
                 <div className="text-sm text-gray-600">
-                  ${segment.amount.toFixed(2)}
+                  ${formatCurrency(segment.amount)}
                 </div>
               </div>
             </div>
@@ -266,7 +274,7 @@ export default function WhereYourDollarGoes({
 
       {/* Summary */}
       <div className="mt-6 text-center text-sm text-gray-600">
-        Every dollar of your ${perCapitaTotal.toFixed(2)} per-resident investment
+        Every dollar of your ${formatCurrency(perCapitaTotal)} per-resident investment
       </div>
     </motion.div>
   )
