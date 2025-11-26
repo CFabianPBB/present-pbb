@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, ExternalLink } from 'lucide-react'
+import { Search, ExternalLink, Sparkles, Loader2 } from 'lucide-react'
 import { API_BASE_URL } from '../config/api';
 
 interface Program {
@@ -20,12 +20,18 @@ interface ProgramTableProps {
     quartile?: string
     search?: string
   }
+  datasetId?: string | null  // For semantic search
 }
 
-export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProps) {
+export function ProgramTable({ onProgramSelect, filters = {}, datasetId }: ProgramTableProps) {
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // Semantic search state
+  const [semanticResults, setSemanticResults] = useState<Program[] | null>(null)
+  const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   useEffect(() => {
     loadPrograms()
@@ -42,8 +48,8 @@ export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProp
   }, [filters])
 
   const loadPrograms = async () => {
-    const datasetId = localStorage.getItem('selectedDatasetId')
-    if (!datasetId) {
+    const dsId = datasetId || localStorage.getItem('selectedDatasetId')
+    if (!dsId) {
       setLoading(false)
       return
     }
@@ -52,7 +58,7 @@ export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProp
     
     try {
       const params = new URLSearchParams({
-        dataset_id: datasetId,
+        dataset_id: dsId,
         limit: '100',
         ...(filters.department && { dept: filters.department }),
         ...(filters.quartile && { quartile: filters.quartile }),
@@ -71,11 +77,68 @@ export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProp
     }
   }
 
-  // Filter programs by search term
-  const filteredPrograms = programs.filter(program =>
-    program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    program.service_type.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Semantic search effect
+  useEffect(() => {
+    if (searchTerm.length < 2) {
+      setSemanticResults(null)
+      setSearchType(null)
+      setSearchLoading(false)
+      return
+    }
+
+    const dsId = datasetId || localStorage.getItem('selectedDatasetId')
+    if (!dsId) return
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true)
+      
+      try {
+        // Try semantic search first
+        const response = await fetch(
+          `${API_BASE_URL}/api/semantic-search?dataset_id=${dsId}&q=${encodeURIComponent(searchTerm)}&limit=30`
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.searchType === 'semantic' && data.programs.length > 0) {
+            // Convert semantic results to Program format
+            const semanticPrograms: Program[] = data.programs.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              service_type: p.serviceType || '',
+              quartile: p.quartile || '',
+              total_cost: p.totalCost || 0,
+              fte: 0,
+              department: '',
+              division: ''
+            }))
+            setSemanticResults(semanticPrograms)
+            setSearchType('semantic')
+            setSearchLoading(false)
+            return
+          }
+        }
+      } catch (err) {
+        console.log('Semantic search unavailable, using client-side filtering')
+      }
+      
+      // Fall back to client-side filtering
+      setSemanticResults(null)
+      setSearchType('keyword')
+      setSearchLoading(false)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchTerm, datasetId])
+
+  // Use semantic results if available, otherwise filter client-side
+  const filteredPrograms = semanticResults !== null 
+    ? semanticResults 
+    : programs.filter(program =>
+        program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        program.service_type.toLowerCase().includes(searchTerm.toLowerCase())
+      )
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -104,12 +167,30 @@ export function ProgramTable({ onProgramSelect, filters = {} }: ProgramTableProp
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search programs..."
+            placeholder="Search programs... (try 'swimming' or 'homeless')"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-10 pr-20 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
+          {searchLoading && (
+            <Loader2 className="absolute right-12 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+          )}
+          {searchTerm && !searchLoading && searchType === 'semantic' && (
+            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full text-[10px] font-medium">
+              <Sparkles className="h-2.5 w-2.5" />
+              AI
+            </span>
+          )}
         </div>
+        {/* Search feedback */}
+        {searchTerm && !searchLoading && filteredPrograms.length > 0 && (
+          <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
+            Found {filteredPrograms.length} program{filteredPrograms.length !== 1 ? 's' : ''}
+            {searchType === 'semantic' && (
+              <span className="text-purple-600 font-medium">using AI search</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, ArrowRightLeft, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { Search, ArrowRightLeft, X, ChevronDown, ChevronUp, Loader2, Sparkles } from 'lucide-react'
 import * as d3 from 'd3'
 import { sankey, sankeyLinkHorizontal } from 'd3-sankey'
 import { API_BASE_URL } from '../config/api'
@@ -75,6 +75,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
+  const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
   
   // Expanded filter sections
   const [expandedFilters, setExpandedFilters] = useState<{
@@ -189,24 +190,57 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     fetchSankeyData()
   }, [fetchSankeyData])
 
-  // Search typeahead
+  // Search typeahead with semantic search for programs
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults(null)
       setShowSearchDropdown(false)
+      setSearchType(null)
       return
     }
     
     const timer = setTimeout(async () => {
       setSearchLoading(true)
       try {
-        const searchType = direction === 'category_to_program' ? 'categories' : 'programs'
+        // For programs, try semantic search first
+        if (direction === 'program_to_category') {
+          try {
+            const semanticResponse = await fetch(
+              `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=15`
+            )
+            if (semanticResponse.ok) {
+              const semanticData = await semanticResponse.json()
+              if (semanticData.searchType === 'semantic' && semanticData.programs.length > 0) {
+                // Convert semantic results to SearchResult format
+                setSearchResults({
+                  categories: [],
+                  programs: semanticData.programs.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    userGroup: p.userGroup || '',
+                    totalCost: p.totalCost
+                  }))
+                })
+                setSearchType('semantic')
+                setShowSearchDropdown(true)
+                setSearchLoading(false)
+                return
+              }
+            }
+          } catch (err) {
+            console.log('Semantic search unavailable, falling back to keyword search')
+          }
+        }
+        
+        // Fall back to sankey-search (keyword expansion)
+        const searchTypeParam = direction === 'category_to_program' ? 'categories' : 'programs'
         const response = await fetch(
-          `${API_BASE_URL}/api/sankey-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&search_type=${searchType}&limit=10`
+          `${API_BASE_URL}/api/sankey-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&search_type=${searchTypeParam}&limit=10`
         )
         if (response.ok) {
           const results = await response.json()
           setSearchResults(results)
+          setSearchType('keyword')
           setShowSearchDropdown(true)
         }
       } catch (err) {
@@ -771,7 +805,15 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
               {direction === 'program_to_category' && searchResults.programs.length > 0 && (
                 <div>
                   <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 flex justify-between items-center sticky top-0">
-                    <span>Programs ({searchResults.programs.length})</span>
+                    <span className="flex items-center gap-1.5">
+                      Programs ({searchResults.programs.length})
+                      {searchType === 'semantic' && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full text-[10px] font-medium">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          AI
+                        </span>
+                      )}
+                    </span>
                     <button
                       onClick={selectAllSearchResults}
                       className="text-blue-600 hover:text-blue-800 font-medium"
