@@ -74,6 +74,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   
   // Tooltip
   const [tooltip, setTooltip] = useState<{
@@ -393,8 +394,8 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
         
         setTooltip({
           visible: true,
-          x: event.pageX,
-          y: event.pageY,
+          x: event.clientX,
+          y: event.clientY,
           content: (
             <div className="text-sm max-w-xs">
               <div className="font-semibold text-gray-900 mb-1 break-words">
@@ -407,19 +408,14 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                 {formatCurrency(d.value)}
               </div>
               <div className="text-gray-500 text-xs">
-                {d.percentage.toFixed(1)}% of total
+                {d.percentage?.toFixed(1) || '0'}% of total
               </div>
-              {d.userGroup && (
-                <div className="text-gray-500 text-xs mt-1">
-                  {d.userGroup}
-                </div>
-              )}
             </div>
           )
         })
       })
       .on('mousemove', (event: MouseEvent) => {
-        setTooltip(prev => ({ ...prev, x: event.pageX, y: event.pageY }))
+        setTooltip(prev => ({ ...prev, x: event.clientX, y: event.clientY }))
       })
       .on('mouseleave', function() {
         d3.select(this).attr('opacity', 1)
@@ -435,6 +431,43 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
           }
         }
         setShowSearchDropdown(false)
+      })
+    
+    // Add tooltips for links too
+    linkPaths
+      .on('mouseenter', function(event: MouseEvent, d: any) {
+        d3.select(this).attr('stroke-opacity', 0.8)
+        
+        const source = d.source as SankeyNode
+        const target = d.target as SankeyNode
+        
+        setTooltip({
+          visible: true,
+          x: event.clientX,
+          y: event.clientY,
+          content: (
+            <div className="text-sm max-w-xs">
+              <div className="font-medium text-gray-900 mb-2">
+                <span className="text-purple-600">{source.fullName || source.name}</span>
+                <span className="text-gray-400 mx-2">→</span>
+                <span className="text-blue-600">{target.fullName || target.name}</span>
+              </div>
+              <div className="text-blue-600 font-bold text-lg">
+                {formatCurrency(d.value)}
+              </div>
+              <div className="text-gray-500 text-xs">
+                {d.percentage?.toFixed(1) || '0'}% of total flow
+              </div>
+            </div>
+          )
+        })
+      })
+      .on('mousemove', (event: MouseEvent) => {
+        setTooltip(prev => ({ ...prev, x: event.clientX, y: event.clientY }))
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('stroke-opacity', 0.4)
+        setTooltip(prev => ({ ...prev, visible: false }))
       })
     
     // Add node labels with better truncation
@@ -470,12 +503,65 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     
   }, [data, dimensions, selectedSearchItems])
 
-  const handleSearchSelect = (term: string) => {
+  const handleSearchSelect = (term: string, event?: React.MouseEvent) => {
+    // Check if shift is held for range select
+    if (event?.shiftKey && lastSelectedIndex !== null && searchResults) {
+      const items = direction === 'category_to_program' 
+        ? searchResults.categories.map(c => c.name)
+        : searchResults.programs.map(p => p.name)
+      
+      const currentIndex = items.indexOf(term)
+      if (currentIndex !== -1) {
+        const start = Math.min(lastSelectedIndex, currentIndex)
+        const end = Math.max(lastSelectedIndex, currentIndex)
+        const rangeItems = items.slice(start, end + 1)
+        
+        setSelectedSearchItems(prev => {
+          const newItems = [...prev]
+          rangeItems.forEach(item => {
+            if (!newItems.includes(item)) {
+              newItems.push(item)
+            }
+          })
+          return newItems
+        })
+        return
+      }
+    }
+    
+    // Track last selected for shift-click range
+    if (searchResults) {
+      const items = direction === 'category_to_program' 
+        ? searchResults.categories.map(c => c.name)
+        : searchResults.programs.map(p => p.name)
+      setLastSelectedIndex(items.indexOf(term))
+    }
+    
     if (!selectedSearchItems.includes(term)) {
       setSelectedSearchItems(prev => [...prev, term])
+    } else {
+      // If already selected, deselect it
+      setSelectedSearchItems(prev => prev.filter(item => item !== term))
     }
-    setSearchQuery('')
+  }
+
+  const selectAllSearchResults = () => {
+    if (!searchResults) return
+    const items = direction === 'category_to_program' 
+      ? searchResults.categories.map(c => c.name)
+      : searchResults.programs.map(p => p.name)
+    
+    setSelectedSearchItems(prev => {
+      const newItems = [...prev]
+      items.forEach(item => {
+        if (!newItems.includes(item)) {
+          newItems.push(item)
+        }
+      })
+      return newItems
+    })
     setShowSearchDropdown(false)
+    setSearchQuery('')
   }
 
   const removeSearchItem = (term: string) => {
@@ -626,48 +712,112 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
           
           {/* Search Dropdown */}
           {showSearchDropdown && searchResults && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-auto">
               {direction === 'category_to_program' && searchResults.categories.length > 0 && (
                 <div>
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50">
-                    Categories
-                  </div>
-                  {searchResults.categories.map((cat, i) => (
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 flex justify-between items-center sticky top-0">
+                    <span>Categories ({searchResults.categories.length})</span>
                     <button
-                      key={i}
-                      onClick={() => handleSearchSelect(cat.name)}
-                      className="w-full px-3 py-2 text-left hover:bg-blue-50 flex justify-between items-center"
+                      onClick={selectAllSearchResults}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
                     >
-                      <span className="text-sm text-gray-900 truncate">{cat.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">{formatCurrency(cat.totalCost)}</span>
+                      Select All
                     </button>
-                  ))}
+                  </div>
+                  <div className="text-[10px] text-gray-400 px-3 py-1 bg-gray-50 border-b">
+                    💡 Shift+click to select range
+                  </div>
+                  {searchResults.categories.map((cat, i) => {
+                    const isSelected = selectedSearchItems.includes(cat.name)
+                    return (
+                      <button
+                        key={i}
+                        onClick={(e) => handleSearchSelect(cat.name, e)}
+                        className={`w-full px-3 py-2 text-left flex justify-between items-center transition-colors ${
+                          isSelected ? 'bg-purple-50' : 'hover:bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-900 truncate">{cat.name}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 ml-2">{formatCurrency(cat.totalCost)}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
               {direction === 'program_to_category' && searchResults.programs.length > 0 && (
                 <div>
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50">
-                    Programs
-                  </div>
-                  {searchResults.programs.map((prog, i) => (
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 flex justify-between items-center sticky top-0">
+                    <span>Programs ({searchResults.programs.length})</span>
                     <button
-                      key={i}
-                      onClick={() => handleSearchSelect(prog.name)}
-                      className="w-full px-3 py-2 text-left hover:bg-blue-50 flex justify-between items-center"
+                      onClick={selectAllSearchResults}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
                     >
-                      <div className="truncate">
-                        <span className="text-sm text-gray-900">{prog.name}</span>
-                        <span className="text-xs text-gray-500 ml-2">{prog.userGroup}</span>
-                      </div>
-                      <span className="text-xs text-gray-500 ml-2">{formatCurrency(prog.totalCost)}</span>
+                      Select All
                     </button>
-                  ))}
+                  </div>
+                  <div className="text-[10px] text-gray-400 px-3 py-1 bg-gray-50 border-b">
+                    💡 Shift+click to select range
+                  </div>
+                  {searchResults.programs.map((prog, i) => {
+                    const isSelected = selectedSearchItems.includes(prog.name)
+                    return (
+                      <button
+                        key={i}
+                        onClick={(e) => handleSearchSelect(prog.name, e)}
+                        className={`w-full px-3 py-2 text-left flex justify-between items-center transition-colors ${
+                          isSelected ? 'bg-purple-50' : 'hover:bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="truncate">
+                            <span className="text-sm text-gray-900">{prog.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">{prog.userGroup}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-500 ml-2">{formatCurrency(prog.totalCost)}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
               {((direction === 'category_to_program' && searchResults.categories.length === 0) ||
                 (direction === 'program_to_category' && searchResults.programs.length === 0)) && (
                 <div className="px-3 py-4 text-sm text-gray-500 text-center">
                   No results found
+                </div>
+              )}
+              {/* Done button when items are selected */}
+              {selectedSearchItems.length > 0 && (
+                <div className="sticky bottom-0 px-3 py-2 bg-gray-50 border-t">
+                  <button
+                    onClick={() => {
+                      setShowSearchDropdown(false)
+                      setSearchQuery('')
+                    }}
+                    className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Done ({selectedSearchItems.length} selected)
+                  </button>
                 </div>
               )}
             </div>
@@ -912,11 +1062,10 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
       {/* Tooltip */}
       {tooltip.visible && (
         <div
-          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-3 pointer-events-none"
+          className="fixed z-[100] bg-white border border-gray-200 rounded-lg shadow-xl p-3 pointer-events-none max-w-[280px]"
           style={{
-            left: tooltip.x + 10,
-            top: tooltip.y - 10,
-            transform: 'translateY(-100%)'
+            left: tooltip.x + 15,
+            top: tooltip.y + 15,
           }}
         >
           {tooltip.content}
