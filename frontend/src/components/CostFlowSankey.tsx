@@ -219,11 +219,11 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
     
-    // Responsive margins
+    // Responsive margins - increased top margin for header labels
     const isMobile = dimensions.width < 500
     const isTablet = dimensions.width < 800
     const margin = { 
-      top: 10, 
+      top: isMobile ? 25 : 35,  // More space for CATEGORIES/PROGRAMS headers
       right: isMobile ? 80 : isTablet ? 120 : 150, 
       bottom: 10, 
       left: isMobile ? 80 : isTablet ? 120 : 150 
@@ -878,18 +878,18 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
                     </div>
                   )}
                   
-                  <svg ref={svgRef} className="w-full" />
+                  <svg ref={svgRef} className="w-full mt-5" />
                   
                   {/* Side Labels - hidden on very small screens */}
-                  <div className="hidden sm:block absolute top-8 sm:top-10 left-0 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <div className="hidden sm:block absolute top-0 left-0 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
                     {direction === 'category_to_program' ? 'Categories' : 'Programs'}
                   </div>
                   {hasPriorityNodes && (
-                    <div className="hidden sm:block absolute top-8 sm:top-10 left-1/2 -translate-x-1/2 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    <div className="hidden sm:block absolute top-0 left-1/2 -translate-x-1/2 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
                       Programs
                     </div>
                   )}
-                  <div className="hidden sm:block absolute top-8 sm:top-10 right-0 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <div className="hidden sm:block absolute top-0 right-0 text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide">
                     {hasPriorityNodes 
                       ? 'Priorities'
                       : direction === 'category_to_program' ? 'Programs' : 'Categories'
