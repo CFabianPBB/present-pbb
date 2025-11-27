@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AttributeScatterPlot } from '../components/AttributeScatterPlot'
 import { ProgramDrawer } from '../components/ProgramDrawer'
+import { Sparkles, Loader2, Search } from 'lucide-react'
 import { API_BASE_URL } from '../config/api';
 
 interface ProgramData {
@@ -61,6 +62,12 @@ export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) 
   const [budgetRange, setBudgetRange] = useState<[number, number]>([0, 100000000])
   const [searchText, setSearchText] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
+  
+  // Semantic search state
+  const [semanticMatchIds, setSemanticMatchIds] = useState<Set<number> | null>(null)
+  const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchPrecision, setSearchPrecision] = useState<'broad' | 'balanced' | 'precise'>('balanced')
 
   useEffect(() => {
     loadData()
@@ -74,6 +81,53 @@ export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) 
       window.removeEventListener('datasetUploaded', handleDatasetChange)
     }
   }, [selectedAttribute, showCategories, lockedDatasetId])
+
+  // Semantic search effect
+  useEffect(() => {
+    if (searchText.length < 2) {
+      setSemanticMatchIds(null)
+      setSearchType(null)
+      setSearchLoading(false)
+      return
+    }
+
+    const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
+    if (!datasetId) return
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true)
+      
+      // Get threshold based on precision setting
+      const thresholds = { broad: 0.15, balanced: 0.3, precise: 0.5 }
+      const threshold = thresholds[searchPrecision]
+      
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchText)}&limit=50&threshold=${threshold}`
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (data.searchType === 'semantic' && data.programs.length > 0) {
+            setSemanticMatchIds(new Set(data.programs.map((p: any) => p.id)))
+            setSearchType('semantic')
+            setSearchLoading(false)
+            return
+          }
+        }
+      } catch (err) {
+        console.log('Semantic search unavailable, using client-side filtering')
+      }
+      
+      // Fall back to client-side filtering
+      setSemanticMatchIds(null)
+      setSearchType('keyword')
+      setSearchLoading(false)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchText, searchPrecision, lockedDatasetId])
 
   const loadData = async () => {
     const datasetId = lockedDatasetId || localStorage.getItem('selectedDatasetId')
@@ -133,16 +187,23 @@ export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) 
   const applyFilters = (data: ProgramData[]) => {
     let filtered = [...data]
     
+    // Use semantic search results if available, otherwise fall back to client-side text search
     if (searchText.trim() !== '') {
-      const search = searchText.toLowerCase()
-      filtered = filtered.filter(p => {
-        const nameMatch = p.name?.toLowerCase().includes(search) || false
-        const serviceTypeMatch = p.service_type?.toLowerCase().includes(search) || false
-        const departmentMatch = p.department?.toLowerCase().includes(search) || false
-        const orgUnitMatch = p.org_unit?.toLowerCase().includes(search) || false
-        const descriptionMatch = p.description?.toLowerCase().includes(search) || false
-        return nameMatch || serviceTypeMatch || departmentMatch || orgUnitMatch || descriptionMatch
-      })
+      if (semanticMatchIds !== null) {
+        // Use semantic search results (filter by matched IDs)
+        filtered = filtered.filter(p => semanticMatchIds.has(p.id))
+      } else {
+        // Fall back to client-side text search
+        const search = searchText.toLowerCase()
+        filtered = filtered.filter(p => {
+          const nameMatch = p.name?.toLowerCase().includes(search) || false
+          const serviceTypeMatch = p.service_type?.toLowerCase().includes(search) || false
+          const departmentMatch = p.department?.toLowerCase().includes(search) || false
+          const orgUnitMatch = p.org_unit?.toLowerCase().includes(search) || false
+          const descriptionMatch = p.description?.toLowerCase().includes(search) || false
+          return nameMatch || serviceTypeMatch || departmentMatch || orgUnitMatch || descriptionMatch
+        })
+      }
     }
     
     if (selectedDepartments.length > 0) {
@@ -180,7 +241,7 @@ export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) 
     if (allProgramData.length > 0) {
       applyFilters(allProgramData)
     }
-  }, [selectedDepartments, selectedFunds, selectedServiceTypes, selectedCategories, budgetRange, searchText, lockedDatasetId])
+  }, [selectedDepartments, selectedFunds, selectedServiceTypes, selectedCategories, budgetRange, searchText, semanticMatchIds, lockedDatasetId])
 
   const handlePointClick = (programId: number) => {
     setSelectedProgram(programId)
@@ -447,14 +508,56 @@ export function Attributes({ lockedDatasetId, isLocked }: AttributesProps = {}) 
           <div className="p-6 space-y-6">
             {/* Search */}
             <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-2">Search Programs</h3>
-              <input
-                type="text"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Search by program name, department, description..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-md text-sm"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-900">Search Programs</h3>
+                {searchType === 'semantic' && !searchLoading && searchText.length >= 2 && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full text-[10px] font-medium">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    AI
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Search programs... (try 'swimming' or 'homeless')"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {searchLoading && (
+                  <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+                )}
+              </div>
+              {/* Search feedback */}
+              {searchText.length >= 2 && !searchLoading && (
+                <div className="mt-2 text-xs text-gray-600">
+                  Found {programData.length} program{programData.length !== 1 ? 's' : ''}
+                  {searchType === 'semantic' && (
+                    <span className="text-purple-600 font-medium ml-1">using AI search</span>
+                  )}
+                </div>
+              )}
+              {/* Precision Control */}
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-gray-500">Precision:</span>
+                <div className="flex gap-1">
+                  {(['broad', 'balanced', 'precise'] as const).map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setSearchPrecision(level)}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        searchPrecision === level
+                          ? 'bg-purple-100 text-purple-700 font-medium'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      {level === 'broad' ? '🔍 Broad' : level === 'balanced' ? '⚖️ Balanced' : '🎯 Precise'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Department Filter */}

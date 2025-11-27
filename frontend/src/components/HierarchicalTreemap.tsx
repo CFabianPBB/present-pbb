@@ -211,6 +211,7 @@ export function HierarchicalTreemap({
   const [highlightedIds, setHighlightedIds] = useState<Set<number>>(new Set())
   const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [searchPrecision, setSearchPrecision] = useState<'broad' | 'balanced' | 'precise'>('balanced')
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false)
@@ -340,11 +341,15 @@ useEffect(() => {
     const debounceTimer = setTimeout(async () => {
       setIsSearching(true)
       
+      // Get threshold based on precision setting
+      const thresholds = { broad: 0.15, balanced: 0.3, precise: 0.5 }
+      const threshold = thresholds[searchPrecision]
+      
       // Try semantic search if datasetId is available
       if (datasetId) {
         try {
           const response = await fetch(
-            `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=30`
+            `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=50&threshold=${threshold}`
           )
           
           if (response.ok) {
@@ -394,7 +399,7 @@ useEffect(() => {
     }, 300) // 300ms debounce
     
     return () => clearTimeout(debounceTimer)
-  }, [searchQuery, filteredData, datasetId])
+  }, [searchQuery, searchPrecision, filteredData, datasetId])
 
   const getPriorityScore = (program: Program, priority?: string | null, group?: string): number => {
     if (!priority || !program.priority_scores) return 0.5
@@ -777,6 +782,25 @@ useEffect(() => {
               </motion.div>
             )}
           </AnimatePresence>
+          {/* Precision Control - show when searching */}
+          {searchQuery && (
+            <div className="flex items-center gap-1 mt-6">
+              <span className="text-[10px] text-gray-400">Precision:</span>
+              {(['broad', 'balanced', 'precise'] as const).map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setSearchPrecision(level)}
+                  className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                    searchPrecision === level
+                      ? 'bg-purple-100 text-purple-700 font-medium'
+                      : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {level === 'broad' ? '🔍' : level === 'balanced' ? '⚖️' : '🎯'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Filter Toggle Button */}

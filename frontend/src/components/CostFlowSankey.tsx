@@ -76,6 +76,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
   const [searchLoading, setSearchLoading] = useState(false)
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null)
   const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
+  const [searchPrecision, setSearchPrecision] = useState<'broad' | 'balanced' | 'precise'>('balanced')
   
   // Expanded filter sections
   const [expandedFilters, setExpandedFilters] = useState<{
@@ -201,12 +202,17 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     
     const timer = setTimeout(async () => {
       setSearchLoading(true)
+      
+      // Get threshold based on precision setting
+      const thresholds = { broad: 0.15, balanced: 0.3, precise: 0.5 }
+      const threshold = thresholds[searchPrecision]
+      
       try {
         // For programs, try semantic search first
         if (direction === 'program_to_category') {
           try {
             const semanticResponse = await fetch(
-              `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=15`
+              `${API_BASE_URL}/api/semantic-search?dataset_id=${datasetId}&q=${encodeURIComponent(searchQuery)}&limit=20&threshold=${threshold}`
             )
             if (semanticResponse.ok) {
               const semanticData = await semanticResponse.json()
@@ -251,7 +257,7 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
     }, 300)
     
     return () => clearTimeout(timer)
-  }, [searchQuery, datasetId, direction])
+  }, [searchQuery, searchPrecision, datasetId, direction])
 
   // Render Sankey diagram
   useEffect(() => {
@@ -757,6 +763,26 @@ export function CostFlowSankey({ datasetId, className = '' }: CostFlowSankeyProp
               <Loader2 className="absolute right-10 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
             )}
           
+          {/* Precision Control - show when searching programs */}
+          {searchQuery && direction === 'program_to_category' && (
+            <div className="flex items-center gap-1 mt-2 mb-1">
+              <span className="text-[10px] text-gray-400">Precision:</span>
+              {(['broad', 'balanced', 'precise'] as const).map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setSearchPrecision(level)}
+                  className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                    searchPrecision === level
+                      ? 'bg-purple-100 text-purple-700 font-medium'
+                      : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                >
+                  {level === 'broad' ? '🔍' : level === 'balanced' ? '⚖️' : '🎯'}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Search Dropdown */}
           {showSearchDropdown && searchResults && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-auto">

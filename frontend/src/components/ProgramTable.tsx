@@ -32,6 +32,7 @@ export function ProgramTable({ onProgramSelect, filters = {}, datasetId }: Progr
   const [semanticResults, setSemanticResults] = useState<Program[] | null>(null)
   const [searchType, setSearchType] = useState<'semantic' | 'keyword' | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [searchPrecision, setSearchPrecision] = useState<'broad' | 'balanced' | 'precise'>('balanced')
 
   useEffect(() => {
     loadPrograms()
@@ -92,10 +93,14 @@ export function ProgramTable({ onProgramSelect, filters = {}, datasetId }: Progr
     const timer = setTimeout(async () => {
       setSearchLoading(true)
       
+      // Get threshold based on precision setting
+      const thresholds = { broad: 0.15, balanced: 0.3, precise: 0.5 }
+      const threshold = thresholds[searchPrecision]
+      
       try {
         // Try semantic search first
         const response = await fetch(
-          `${API_BASE_URL}/api/semantic-search?dataset_id=${dsId}&q=${encodeURIComponent(searchTerm)}&limit=30`
+          `${API_BASE_URL}/api/semantic-search?dataset_id=${dsId}&q=${encodeURIComponent(searchTerm)}&limit=50&threshold=${threshold}`
         )
         
         if (response.ok) {
@@ -130,7 +135,7 @@ export function ProgramTable({ onProgramSelect, filters = {}, datasetId }: Progr
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [searchTerm, datasetId])
+  }, [searchTerm, searchPrecision, datasetId])
 
   // Use semantic results if available, otherwise filter client-side
   const filteredPrograms = semanticResults !== null 
@@ -189,6 +194,25 @@ export function ProgramTable({ onProgramSelect, filters = {}, datasetId }: Progr
             {searchType === 'semantic' && (
               <span className="text-purple-600 font-medium">using AI search</span>
             )}
+          </div>
+        )}
+        {/* Precision Control */}
+        {searchTerm && (
+          <div className="mt-2 flex items-center gap-1">
+            <span className="text-[10px] text-gray-400">Precision:</span>
+            {(['broad', 'balanced', 'precise'] as const).map((level) => (
+              <button
+                key={level}
+                onClick={() => setSearchPrecision(level)}
+                className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                  searchPrecision === level
+                    ? 'bg-purple-100 text-purple-700 font-medium'
+                    : 'text-gray-400 hover:bg-gray-100'
+                }`}
+              >
+                {level === 'broad' ? '🔍 Broad' : level === 'balanced' ? '⚖️ Balanced' : '🎯 Precise'}
+              </button>
+            ))}
           </div>
         )}
       </div>
