@@ -107,7 +107,7 @@ export function Navigation() {
   })
 
   return (
-    <nav className="shadow-sm border-b" style={{ backgroundColor: '#003D79' }}>
+    <nav className="sticky top-0 z-50 shadow-sm border-b" style={{ backgroundColor: '#003D79' }}>
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4 md:space-x-8 flex-1">
